@@ -3,7 +3,8 @@
 
 
 int main(){
-    char i;
-    printf("%ld\n", sizeof(i));
+    int i;
+    for(i=0; i<10; i+=4);
+    printf("%d\n",i);
     return 0;
 }
