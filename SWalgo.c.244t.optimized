@@ -1,0 +1,774 @@
+
+;; Function matchMissmatchScore (matchMissmatchScore, funcdef_no=41, decl_uid=4519, cgraph_uid=42, symbol_order=48)
+
+int matchMissmatchScore (long long int i, long long int j)
+{
+  char * a.23_1;
+  sizetype j.24_2;
+  sizetype _3;
+  char * _4;
+  char _5;
+  char * b.25_6;
+  sizetype i.26_7;
+  sizetype _8;
+  char * _9;
+  char _10;
+  int _11;
+  int _15;
+  int _16;
+
+  <bb 2> [local count: 1073741824]:
+  a.23_1 = a;
+  j.24_2 = (sizetype) j_13(D);
+  _3 = j.24_2 + 18446744073709551615;
+  _4 = a.23_1 + _3;
+  _5 = *_4;
+  b.25_6 = b;
+  i.26_7 = (sizetype) i_14(D);
+  _8 = i.26_7 + 18446744073709551615;
+  _9 = b.25_6 + _8;
+  _10 = *_9;
+  if (_5 == _10)
+    goto <bb 3>; [34.00%]
+  else
+    goto <bb 4>; [66.00%]
+
+  <bb 3> [local count: 365072224]:
+  _16 = matchScore;
+  goto <bb 5>; [100.00%]
+
+  <bb 4> [local count: 708669601]:
+  _15 = missmatchScore;
+
+  <bb 5> [local count: 1073741824]:
+  # _11 = PHI <_16(3), _15(4)>
+  return _11;
+
+}
+
+
+
+;; Function similarityScore (similarityScore, funcdef_no=40, decl_uid=4516, cgraph_uid=41, symbol_order=47)
+
+Removing basic block 3
+Removing basic block 5
+Removing basic block 7
+Removing basic block 14
+void similarityScore (long long int i, long long int j, int * H, int * P, long long int * maxPos)
+{
+  int pred;
+  int max;
+  long long int index;
+  int diag;
+  int left;
+  int up;
+  long long int m.15_1;
+  long long int _2;
+  long long int _3;
+  long unsigned int _4;
+  long unsigned int _5;
+  int * _6;
+  int _7;
+  int gapScore.17_8;
+  long unsigned int index.18_9;
+  long unsigned int _10;
+  sizetype _11;
+  int * _12;
+  int _13;
+  sizetype _14;
+  int * _15;
+  int _16;
+  int _17;
+  int * _18;
+  int * _19;
+  long long int _20;
+  long unsigned int _21;
+  long unsigned int _22;
+  int * _23;
+  int _24;
+
+  <bb 2> [local count: 1073741824]:
+  m.15_1 = m;
+  _2 = m.15_1 * i_33(D);
+  index_35 = _2 + j_34(D);
+  _3 = index_35 - m.15_1;
+  _4 = (long unsigned int) _3;
+  _5 = _4 * 4;
+  _6 = H_36(D) + _5;
+  _7 = *_6;
+  gapScore.17_8 = gapScore;
+  up_37 = _7 + gapScore.17_8;
+  index.18_9 = (long unsigned int) index_35;
+  _10 = index.18_9 * 4;
+  _11 = _10 + 18446744073709551612;
+  _12 = H_36(D) + _11;
+  _13 = *_12;
+  left_38 = gapScore.17_8 + _13;
+  _14 = _5 + 18446744073709551612;
+  _15 = H_36(D) + _14;
+  _16 = *_15;
+  _17 = matchMissmatchScore (i_33(D), j_34(D));
+  diag_39 = _16 + _17;
+  if (diag_39 > 0)
+    goto <bb 3>; [59.00%]
+  else
+    goto <bb 4>; [41.00%]
+
+  <bb 3> [local count: 633507680]:
+
+  <bb 4> [local count: 1073741824]:
+  # max_25 = PHI <0(2), diag_39(3)>
+  # pred_28 = PHI <0(2), 3(3)>
+  if (max_25 < up_37)
+    goto <bb 5>; [50.00%]
+  else
+    goto <bb 6>; [50.00%]
+
+  <bb 5> [local count: 536870912]:
+
+  <bb 6> [local count: 1073741824]:
+  # max_26 = PHI <max_25(4), up_37(5)>
+  # pred_29 = PHI <pred_28(4), 1(5)>
+  if (max_26 < left_38)
+    goto <bb 7>; [50.00%]
+  else
+    goto <bb 8>; [50.00%]
+
+  <bb 7> [local count: 536870912]:
+
+  <bb 8> [local count: 1073741824]:
+  # max_27 = PHI <max_26(6), left_38(7)>
+  # pred_30 = PHI <pred_29(6), 2(7)>
+  _18 = H_36(D) + _10;
+  *_18 = max_27;
+  _19 = P_41(D) + _10;
+  *_19 = pred_30;
+  _20 = *maxPos_43(D);
+  _21 = (long unsigned int) _20;
+  _22 = _21 * 4;
+  _23 = H_36(D) + _22;
+  _24 = *_23;
+  if (_24 < max_27)
+    goto <bb 9>; [50.00%]
+  else
+    goto <bb 10>; [50.00%]
+
+  <bb 9> [local count: 536870913]:
+  *maxPos_43(D) = index_35;
+
+  <bb 10> [local count: 1073741824]:
+  return;
+
+}
+
+
+
+;; Function backtrack (backtrack, funcdef_no=42, decl_uid=4522, cgraph_uid=43, symbol_order=49)
+
+Removing basic block 11
+Removing basic block 12
+void backtrack (int * P, long long int maxPos)
+{
+  long long int predPos;
+  long unsigned int maxPos.27_1;
+  long unsigned int _2;
+  int * _3;
+  int _4;
+  long long int m.28_5;
+  long long int _6;
+  long long int m.30_7;
+  int _8;
+  long unsigned int maxPos.34_9;
+  long unsigned int _10;
+  int * _11;
+  int _12;
+
+  <bb 2> [local count: 118111598]:
+
+  <bb 3> [local count: 1073741823]:
+  # maxPos_13 = PHI <maxPos_17(D)(2), predPos_15(9)>
+  # predPos_14 = PHI <predPos_18(D)(2), predPos_15(9)>
+  maxPos.27_1 = (long unsigned int) maxPos_13;
+  _2 = maxPos.27_1 * 4;
+  _3 = P_20(D) + _2;
+  _4 = *_3;
+  if (_4 == 3)
+    goto <bb 4>; [34.00%]
+  else
+    goto <bb 5>; [66.00%]
+
+  <bb 4> [local count: 365072224]:
+  m.28_5 = m;
+  _6 = maxPos_13 - m.28_5;
+  predPos_23 = _6 + -1;
+  goto <bb 9>; [100.00%]
+
+  <bb 5> [local count: 708669600]:
+  if (_4 == 1)
+    goto <bb 6>; [34.00%]
+  else
+    goto <bb 7>; [66.00%]
+
+  <bb 6> [local count: 240947666]:
+  m.30_7 = m;
+  predPos_22 = maxPos_13 - m.30_7;
+  goto <bb 9>; [100.00%]
+
+  <bb 7> [local count: 467721933]:
+  if (_4 == 2)
+    goto <bb 8>; [34.00%]
+  else
+    goto <bb 9>; [66.00%]
+
+  <bb 8> [local count: 159025459]:
+  predPos_21 = maxPos_13 + -1;
+
+  <bb 9> [local count: 1073741824]:
+  # predPos_15 = PHI <predPos_23(4), predPos_22(6), predPos_14(7), predPos_21(8)>
+  _8 = -_4;
+  *_3 = _8;
+  maxPos.34_9 = (long unsigned int) predPos_15;
+  _10 = maxPos.34_9 * 4;
+  _11 = P_20(D) + _10;
+  _12 = *_11;
+  if (_12 != 0)
+    goto <bb 3>; [89.00%]
+  else
+    goto <bb 10>; [11.00%]
+
+  <bb 10> [local count: 118111600]:
+  return;
+
+}
+
+
+
+;; Function printMatrix (printMatrix, funcdef_no=43, decl_uid=4524, cgraph_uid=44, symbol_order=50)
+
+Removing basic block 7
+Removing basic block 8
+Removing basic block 9
+Removing basic block 10
+Removing basic block 11
+Removing basic block 12
+Removing basic block 13
+Removing basic block 14
+void printMatrix (int * matrix)
+{
+  long long int j;
+  long long int i;
+  long long int _1;
+  long long int _2;
+  long unsigned int _3;
+  long unsigned int _4;
+  int * _5;
+  int _6;
+  long long int m.36_7;
+  long long int n.37_8;
+  long long int n.37_21;
+  long long int m.36_24;
+  long long int m.36_25;
+
+  <bb 2> [local count: 14598063]:
+  n.37_21 = n;
+  if (n.37_21 > 0)
+    goto <bb 5>; [89.00%]
+  else
+    goto <bb 6>; [11.00%]
+
+  <bb 3> [local count: 955630225]:
+  # m.36_25 = PHI <m.36_7(3), m.36_24(5)>
+  # j_27 = PHI <j_16(3), 0(5)>
+  _1 = m.36_25 * i_26;
+  _2 = _1 + j_27;
+  _3 = (long unsigned int) _2;
+  _4 = _3 * 4;
+  _5 = matrix_15(D) + _4;
+  _6 = *_5;
+  __printf_chk (1, "%d\t", _6);
+  j_16 = j_27 + 1;
+  m.36_7 = m;
+  if (m.36_7 > j_16)
+    goto <bb 3>; [89.00%]
+  else
+    goto <bb 4>; [11.00%]
+
+  <bb 4> [local count: 118111600]:
+  __builtin_putchar (10);
+  i_14 = i_26 + 1;
+  n.37_8 = n;
+  if (n.37_8 > i_14)
+    goto <bb 5>; [89.00%]
+  else
+    goto <bb 6>; [11.00%]
+
+  <bb 5> [local count: 118111600]:
+  # i_26 = PHI <i_14(4), 0(2)>
+  m.36_24 = m;
+  if (m.36_24 > 0)
+    goto <bb 3>; [89.00%]
+  else
+    goto <bb 4>; [11.00%]
+
+  <bb 6> [local count: 14598063]:
+  return;
+
+}
+
+
+
+;; Function printPredecessorMatrix (printPredecessorMatrix, funcdef_no=44, decl_uid=4526, cgraph_uid=45, symbol_order=51)
+
+Removing basic block 23
+Removing basic block 24
+Removing basic block 25
+Removing basic block 26
+Removing basic block 27
+Removing basic block 28
+Removing basic block 29
+Removing basic block 30
+void printPredecessorMatrix (int * matrix)
+{
+  long long int index;
+  long long int j;
+  long long int i;
+  long long int _1;
+  long unsigned int index.39_2;
+  long unsigned int _3;
+  int * _4;
+  int _5;
+  int _6;
+  long long int m.46_7;
+  long long int n.47_8;
+  long long int n.47_33;
+  long long int m.46_36;
+  long long int m.46_37;
+
+  <bb 2> [local count: 14598063]:
+  n.47_33 = n;
+  if (n.47_33 > 0)
+    goto <bb 21>; [89.00%]
+  else
+    goto <bb 22>; [11.00%]
+
+  <bb 3> [local count: 955630225]:
+  # m.46_37 = PHI <m.46_7(19), m.46_36(21)>
+  # j_39 = PHI <j_19(19), 0(21)>
+  _1 = m.46_37 * i_38;
+  index_17 = _1 + j_39;
+  index.39_2 = (long unsigned int) index_17;
+  _3 = index.39_2 * 4;
+  _4 = matrix_18(D) + _3;
+  _5 = *_4;
+  if (_5 < 0)
+    goto <bb 4>; [25.50%]
+  else
+    goto <bb 12>; [74.50%]
+
+  <bb 4> [local count: 243685710]:
+  __printf_chk (1, "\x1b[1m\x1b[31m");
+  _6 = *_4;
+  if (_6 == -1)
+    goto <bb 5>; [20.24%]
+  else
+    goto <bb 6>; [79.76%]
+
+  <bb 5> [local count: 49321987]:
+  __printf_chk (1, "\xe2\x86\x91 ");
+  goto <bb 11>; [100.00%]
+
+  <bb 6> [local count: 194363722]:
+  if (_6 == -2)
+    goto <bb 7>; [20.24%]
+  else
+    goto <bb 8>; [79.76%]
+
+  <bb 7> [local count: 39339217]:
+  __printf_chk (1, "\xe2\x86\x90 ");
+  goto <bb 11>; [100.00%]
+
+  <bb 8> [local count: 155024505]:
+  if (_6 == -3)
+    goto <bb 9>; [34.00%]
+  else
+    goto <bb 10>; [66.00%]
+
+  <bb 9> [local count: 52708332]:
+  __printf_chk (1, "\xe2\x86\x96 ");
+  goto <bb 11>; [100.00%]
+
+  <bb 10> [local count: 102316173]:
+  __printf_chk (1, "- ");
+
+  <bb 11> [local count: 243685710]:
+  __printf_chk (1, "\x1b[0m");
+  goto <bb 19>; [100.00%]
+
+  <bb 12> [local count: 711944515]:
+  if (_5 == 1)
+    goto <bb 13>; [20.24%]
+  else
+    goto <bb 14>; [79.76%]
+
+  <bb 13> [local count: 144097569]:
+  __printf_chk (1, "\xe2\x86\x91 ");
+  goto <bb 19>; [100.00%]
+
+  <bb 14> [local count: 567846947]:
+  if (_5 == 2)
+    goto <bb 15>; [20.24%]
+  else
+    goto <bb 16>; [79.76%]
+
+  <bb 15> [local count: 114932221]:
+  __printf_chk (1, "\xe2\x86\x90 ");
+  goto <bb 19>; [100.00%]
+
+  <bb 16> [local count: 452914724]:
+  if (_5 == 3)
+    goto <bb 17>; [34.00%]
+  else
+    goto <bb 18>; [66.00%]
+
+  <bb 17> [local count: 153991008]:
+  __printf_chk (1, "\xe2\x86\x96 ");
+  goto <bb 19>; [100.00%]
+
+  <bb 18> [local count: 298923717]:
+  __printf_chk (1, "- ");
+
+  <bb 19> [local count: 955630227]:
+  j_19 = j_39 + 1;
+  m.46_7 = m;
+  if (m.46_7 > j_19)
+    goto <bb 3>; [89.00%]
+  else
+    goto <bb 20>; [11.00%]
+
+  <bb 20> [local count: 118111600]:
+  __builtin_putchar (10);
+  i_16 = i_38 + 1;
+  n.47_8 = n;
+  if (n.47_8 > i_16)
+    goto <bb 21>; [89.00%]
+  else
+    goto <bb 22>; [11.00%]
+
+  <bb 21> [local count: 118111600]:
+  # i_38 = PHI <i_16(20), 0(2)>
+  m.46_36 = m;
+  if (m.46_36 > 0)
+    goto <bb 3>; [89.00%]
+  else
+    goto <bb 20>; [11.00%]
+
+  <bb 22> [local count: 14598063]:
+  return;
+
+}
+
+
+
+;; Function generate (generate, funcdef_no=45, decl_uid=4528, cgraph_uid=46, symbol_order=52)
+
+Removing basic block 21
+Removing basic block 22
+Removing basic block 23
+Removing basic block 24
+Removing basic block 25
+Removing basic block 26
+Removing basic block 27
+Removing basic block 28
+void generate ()
+{
+  int aux;
+  int aux;
+  long long int i;
+  int _1;
+  char * a.48_2;
+  char * _4;
+  char * a.50_5;
+  char * _7;
+  char * a.52_8;
+  char * _10;
+  char * a.54_11;
+  char * _13;
+  long long int m.56_14;
+  int _15;
+  char * b.57_16;
+  char * _18;
+  char * b.59_19;
+  char * _21;
+  char * b.61_22;
+  char * _24;
+  char * b.63_25;
+  char * _27;
+  long long int n.65_28;
+  sizetype _29;
+  sizetype _30;
+  sizetype _32;
+  sizetype _34;
+  unsigned int _35;
+  unsigned int _37;
+  unsigned int _52;
+  unsigned int _53;
+  sizetype _54;
+  sizetype _55;
+  long long int n.65_56;
+  sizetype _57;
+  sizetype _58;
+  long long int m.56_59;
+
+  <bb 2> [local count: 118111596]:
+  m.56_59 = m;
+  if (m.56_59 > 0)
+    goto <bb 3>; [89.00%]
+  else
+    goto <bb 11>; [11.00%]
+
+  <bb 3> [local count: 955630208]:
+  # i_60 = PHI <i_51(10), 0(2)>
+  _1 = rand ();
+  _52 = (unsigned int) _1;
+  _53 = _52 & 3;
+  if (_53 == 0)
+    goto <bb 4>; [50.00%]
+  else
+    goto <bb 5>; [50.00%]
+
+  <bb 4> [local count: 477815104]:
+  a.48_2 = a;
+  _29 = (sizetype) i_60;
+  _4 = a.48_2 + _29;
+  *_4 = 65;
+  goto <bb 10>; [100.00%]
+
+  <bb 5> [local count: 477815104]:
+  aux_46 = _1 % 4;
+  if (aux_46 == 2)
+    goto <bb 6>; [34.00%]
+  else
+    goto <bb 7>; [66.00%]
+
+  <bb 6> [local count: 162457137]:
+  a.50_5 = a;
+  _58 = (sizetype) i_60;
+  _7 = a.50_5 + _58;
+  *_7 = 67;
+  goto <bb 10>; [100.00%]
+
+  <bb 7> [local count: 315357967]:
+  if (aux_46 == 3)
+    goto <bb 8>; [34.00%]
+  else
+    goto <bb 9>; [66.00%]
+
+  <bb 8> [local count: 107221710]:
+  a.52_8 = a;
+  _57 = (sizetype) i_60;
+  _10 = a.52_8 + _57;
+  *_10 = 71;
+  goto <bb 10>; [100.00%]
+
+  <bb 9> [local count: 208136257]:
+  a.54_11 = a;
+  _54 = (sizetype) i_60;
+  _13 = a.54_11 + _54;
+  *_13 = 84;
+
+  <bb 10> [local count: 955630210]:
+  i_51 = i_60 + 1;
+  m.56_14 = m;
+  if (m.56_14 > i_51)
+    goto <bb 3>; [89.00%]
+  else
+    goto <bb 11>; [11.00%]
+
+  <bb 11> [local count: 118111598]:
+  n.65_56 = n;
+  if (n.65_56 > 0)
+    goto <bb 12>; [89.00%]
+  else
+    goto <bb 20>; [11.00%]
+
+  <bb 12> [local count: 955630226]:
+  # i_61 = PHI <i_44(19), 0(11)>
+  _15 = rand ();
+  _35 = (unsigned int) _15;
+  _37 = _35 & 3;
+  if (_37 == 0)
+    goto <bb 13>; [50.00%]
+  else
+    goto <bb 14>; [50.00%]
+
+  <bb 13> [local count: 477815113]:
+  b.57_16 = b;
+  _55 = (sizetype) i_61;
+  _18 = b.57_16 + _55;
+  *_18 = 65;
+  goto <bb 19>; [100.00%]
+
+  <bb 14> [local count: 477815113]:
+  aux_39 = _15 % 4;
+  if (aux_39 == 2)
+    goto <bb 15>; [34.00%]
+  else
+    goto <bb 16>; [66.00%]
+
+  <bb 15> [local count: 162457140]:
+  b.59_19 = b;
+  _34 = (sizetype) i_61;
+  _21 = b.59_19 + _34;
+  *_21 = 67;
+  goto <bb 19>; [100.00%]
+
+  <bb 16> [local count: 315357973]:
+  if (aux_39 == 3)
+    goto <bb 17>; [34.00%]
+  else
+    goto <bb 18>; [66.00%]
+
+  <bb 17> [local count: 107221712]:
+  b.61_22 = b;
+  _30 = (sizetype) i_61;
+  _24 = b.61_22 + _30;
+  *_24 = 71;
+  goto <bb 19>; [100.00%]
+
+  <bb 18> [local count: 208136261]:
+  b.63_25 = b;
+  _32 = (sizetype) i_61;
+  _27 = b.63_25 + _32;
+  *_27 = 84;
+
+  <bb 19> [local count: 955630228]:
+  i_44 = i_61 + 1;
+  n.65_28 = n;
+  if (n.65_28 > i_44)
+    goto <bb 12>; [89.00%]
+  else
+    goto <bb 20>; [11.00%]
+
+  <bb 20> [local count: 118111600]:
+  return;
+
+}
+
+
+
+;; Function main (main, funcdef_no=39, decl_uid=4538, cgraph_uid=40, symbol_order=46) (executed once)
+
+Removing basic block 7
+Removing basic block 8
+Removing basic block 9
+Removing basic block 10
+Removing basic block 11
+Removing basic block 12
+Removing basic block 13
+Removing basic block 14
+__attribute__((access ("^1[ ]", )))
+int main (int argc, char * * argv)
+{
+  double finalTime;
+  double initialTime;
+  long long int j;
+  long long int i;
+  long long int maxPos;
+  int * P;
+  int * H;
+  char * _1;
+  long long int _2;
+  char * _3;
+  long long int _4;
+  long long int m.0_5;
+  long unsigned int m.1_6;
+  void * _7;
+  long unsigned int n.3_8;
+  void * _9;
+  long long int _10;
+  long long int _11;
+  long long int _12;
+  long unsigned int _13;
+  long long int m.10_14;
+  long long int n.11_15;
+  long long int maxPos.12_16;
+  double _17;
+  char * a.13_18;
+  char * b.14_19;
+  long long int n.11_57;
+  long long int m.10_60;
+
+  <bb 2> [local count: 14598063]:
+  _1 = MEM[(char * *)argv_24(D) + 8B];
+  _2 = strtoll (_1, 0B, 10);
+  m = _2;
+  _3 = MEM[(char * *)argv_24(D) + 16B];
+  _4 = strtoll (_3, 0B, 10);
+  m.0_5 = m;
+  m.1_6 = (long unsigned int) m.0_5;
+  _7 = malloc (m.1_6);
+  a = _7;
+  n.3_8 = (long unsigned int) _4;
+  _9 = malloc (n.3_8);
+  b = _9;
+  _10 = m.0_5 + 1;
+  m = _10;
+  _11 = _4 + 1;
+  n = _11;
+  _12 = _10 * _11;
+  _13 = (long unsigned int) _12;
+  H_36 = calloc (_13, 4);
+  P_38 = calloc (_13, 4);
+  generate ();
+  maxPos = 0;
+  initialTime_42 = omp_get_wtime ();
+  n.11_57 = n;
+  if (n.11_57 > 1)
+    goto <bb 5>; [89.00%]
+  else
+    goto <bb 6>; [11.00%]
+
+  <bb 3> [local count: 955630225]:
+  # j_62 = PHI <j_53(3), 1(5)>
+  similarityScore (i_61, j_62, H_36, P_38, &maxPos);
+  j_53 = j_62 + 1;
+  m.10_14 = m;
+  if (m.10_14 > j_53)
+    goto <bb 3>; [89.00%]
+  else
+    goto <bb 4>; [11.00%]
+
+  <bb 4> [local count: 118111600]:
+  i_51 = i_61 + 1;
+  n.11_15 = n;
+  if (n.11_15 > i_51)
+    goto <bb 5>; [89.00%]
+  else
+    goto <bb 6>; [11.00%]
+
+  <bb 5> [local count: 118111600]:
+  # i_61 = PHI <i_51(4), 1(2)>
+  m.10_60 = m;
+  if (m.10_60 > 1)
+    goto <bb 3>; [89.00%]
+  else
+    goto <bb 4>; [11.00%]
+
+  <bb 6> [local count: 14598063]:
+  maxPos.12_16 = maxPos;
+  backtrack (P_38, maxPos.12_16);
+  finalTime_45 = omp_get_wtime ();
+  _17 = finalTime_45 - initialTime_42;
+  __printf_chk (1, "\nElapsed time: %f\n\n", _17);
+  free (H_36);
+  free (P_38);
+  a.13_18 = a;
+  free (a.13_18);
+  b.14_19 = b;
+  free (b.14_19);
+  maxPos ={v} {CLOBBER};
+  return 0;
+
+}
+
+
