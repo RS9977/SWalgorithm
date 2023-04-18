@@ -25,7 +25,7 @@
 #define LEFT 2
 #define DIAGONAL 3
 
-//#define DEBUG
+#define DEBUG
 //#define pragmas
 /* End of constants */
 

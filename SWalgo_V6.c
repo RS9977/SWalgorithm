@@ -32,9 +32,9 @@
 #define LEFT 2
 #define DIAGONAL 3
 
-#define Vsize 8
+#define Vsize 16
 
-//#define DEBUG
+#define DEBUG
 //#define pragmas
 /* End of constants */
 
@@ -42,12 +42,12 @@
 /*--------------------------------------------------------------------
  * Functions Prototypes
  */
-void similarityScore(long long int ind, long long int ind_u, long long int ind_d, long long int ind_l, long long int ii, long long int jj, int* H, int* P, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
-void similarityScoreIntrinsic(__m256i* H,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* P,__m256i ii,__m256i jj, int* H_main, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
+void similarityScore(long long int ind, long long int ind_u, long long int ind_d, long long int ind_l, long long int ii, long long int jj, short  int* H, short int* P, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
+void similarityScoreIntrinsic(__m256i* H,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* P,__m256i ii,__m256i jj, short int* H_main, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
 int  matchMissmatchScore(long long int i, long long int j);
-void backtrack(int* P, long long int maxPos, long long int maxPos_max_len);
-void printMatrix(int* matrix);
-void printPredecessorMatrix(int* matrix);
+void backtrack(short int* P, long long int maxPos, long long int maxPos_max_len);
+void printMatrix(short int* matrix);
+void printPredecessorMatrix(short int* matrix);
 void generate(void);
 /* End of prototypes */
 
@@ -86,8 +86,8 @@ int main(int argc, char* argv[]) {
         }
     }
     else{
-        m = 100000;
-        n = 10000;
+        m = 18;
+        n = 17;
     }
 
 
@@ -106,12 +106,12 @@ int main(int argc, char* argv[]) {
     n++;
     
     //Allocates similarity matrix H
-    int *H;
-    H = calloc(m * n, sizeof(int));
+    short int *H;
+    H = calloc(m * n, sizeof(short int));
 
     //Allocates predecessor matrix P
-    int *P;
-    P = calloc(m * n, sizeof(int));
+    short int *P;
+    P = calloc(m * n, sizeof(short int));
 
 
     //Gen rand arrays a and b
@@ -165,7 +165,7 @@ int main(int argc, char* argv[]) {
     long long int indd  = 0;
     long long int indul = 1;
     long long int ind_u, ind_d, ind_l; 
-   __m256i offset =_mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+   __m256i offset =_mm256_setr_epi16(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
     for (i = 2; i < m+n-1; i++) { //Lines
         long long int max_len;
         long long int ii,jj;
@@ -216,15 +216,15 @@ int main(int argc, char* argv[]) {
       //  #pragma gcc ivdep 
         for (j = j_start; j <j_end-Vsize+1; j+=Vsize) { //Columns  
 
-           __m256i Joffset = _mm256_add_epi32(offset,_mm256_set1_epi32(j));
-           __m256i Ioffset = _mm256_set1_epi32(i);
-           __m256i mask    = _mm256_set1_epi32(-(int)(m>i));
-           __m256i I_J     = _mm256_sub_epi32(Ioffset, Joffset);
-           __m256i M_1     = _mm256_set1_epi32(m-1);
-           __m256i M_1_J   = _mm256_sub_epi32(M_1,Joffset);
+           __m256i Joffset = _mm256_add_epi16(offset,_mm256_set1_epi16(j));
+           __m256i Ioffset = _mm256_set1_epi16(i);
+           __m256i mask    = _mm256_set1_epi16(-(int)(m>i));
+           __m256i I_J     = _mm256_sub_epi16(Ioffset, Joffset);
+           __m256i M_1     = _mm256_set1_epi16(m-1);
+           __m256i M_1_J   = _mm256_sub_epi16(M_1,Joffset);
            __m256i II      = _mm256_blendv_epi8(M_1_J, I_J, mask);
-           __m256i IJ      = _mm256_add_epi32(Joffset, Ioffset);
-           __m256i I_MJ1   = _mm256_sub_epi32(IJ,M_1);
+           __m256i IJ      = _mm256_add_epi16(Joffset, Ioffset);
+           __m256i I_MJ1   = _mm256_sub_epi16(IJ,M_1);
            __m256i JJ      = _mm256_blendv_epi8(I_MJ1, Joffset, mask);
            similarityScoreIntrinsic(HH, Hu, Hd, Hl, PP, II, JJ, H, ind+j, max_len, &maxPos, &maxPos_max_len);
            Hu++;
@@ -279,9 +279,9 @@ int main(int argc, char* argv[]) {
  * Function:    SimilarityScore
  * Purpose:     Calculate  the maximum Similarity-Score H(i,j)
  */
-void similarityScore(long long int ind, long long int ind_u, long long int ind_d, long long int ind_l, long long int ii, long long int jj, int* H, int* P, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
+void similarityScore(long long int ind, long long int ind_u, long long int ind_d, long long int ind_l, long long int ii, long long int jj, short int* H, short int* P, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
 
-    int up, left, diag;
+    short int up, left, diag;
 
     //Get element above
     up = H[ind_u] + gapScore;
@@ -293,8 +293,8 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
     diag = H[ind_d] + matchMissmatchScore(ii, jj);
 
     //Calculates the maximum
-    int max = NONE;
-    int pred = NONE;
+    short int max = NONE;
+    short int pred = NONE;
     /* === Matrix ===
      *      a[0] ... a[n] 
      * b[0]
@@ -337,7 +337,7 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
 }  /* End of similarityScore */
 
 
-void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* PP,__m256i ii,__m256i jj, int* H, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
+void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* PP,__m256i ii,__m256i jj, short int* H, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
 
    __m256i up, left, diag;
 
@@ -346,27 +346,27 @@ void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__
     __m256i HHl = _mm256_loadu_si256(Hl);
 
     //Get element above
-    up                     =_mm256_add_epi32(HHu,_mm256_set1_epi32(gapScore));
+    up                     =_mm256_add_epi16(HHu,_mm256_set1_epi16(gapScore));
 
     //Get element on the left
-    left                   =_mm256_add_epi32(HHl,_mm256_set1_epi32(gapScore));
+    left                   =_mm256_add_epi16(HHl,_mm256_set1_epi16(gapScore));
 
     //Get element on the diagonal
-    __m256i A              =_mm256_i32gather_epi32((int const*) a, _mm256_sub_epi32(ii,_mm256_set1_epi32(1)), sizeof(char));
-    __m256i B              =_mm256_i32gather_epi32((int const*) b, _mm256_sub_epi32(jj,_mm256_set1_epi32(1)), sizeof(char));
-   A                      = _mm256_slli_epi32(A,24);
-   B                      = _mm256_slli_epi32(B,24);
-   __m256i mask           = _mm256_cmpeq_epi32(A, B);
+    __m256i A              =_mm256_i16gather_epi16((int const*) a, _mm256_sub_epi16(ii,_mm256_set1_epi16(1)), sizeof(char));
+    __m256i B              =_mm256_i16gather_epi16((int const*) b, _mm256_sub_epi16(jj,_mm256_set1_epi16(1)), sizeof(char));
+   A                      = _mm256_slli_epi16(A,8);
+   B                      = _mm256_slli_epi16(B,8);
+   __m256i mask           = _mm256_cmpeq_epi16(A, B);
 
-   __m256i MATCHSCORE     =_mm256_set1_epi32(matchScore);
-   __m256i MISSMATCHSCORE =_mm256_set1_epi32(missmatchScore);
+   __m256i MATCHSCORE     =_mm256_set1_epi16(matchScore);
+   __m256i MISSMATCHSCORE =_mm256_set1_epi16(missmatchScore);
   __m256i MATCHMISS       = _mm256_blendv_epi8(MISSMATCHSCORE, MATCHSCORE, mask);
-    diag                  =_mm256_add_epi32(HHd, MATCHMISS);
+    diag                  =_mm256_add_epi16(HHd, MATCHMISS);
 
 
     //Calculates the maximum
-   __m256i max  =_mm256_set1_epi32(NONE);
-   __m256i pred =_mm256_set1_epi32(NONE);
+   __m256i max  =_mm256_set1_epi16(NONE);
+   __m256i pred =_mm256_set1_epi16(NONE);
 
     /* === Matrix ===
      *      a[0] ... a[n] 
@@ -383,24 +383,24 @@ void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__
      * a=GAATTCA
     */
    //same letter ↖
-    mask    = _mm256_cmpgt_epi32(diag, max);
+    mask    = _mm256_cmpgt_epi16(diag, max);
     max     = _mm256_blendv_epi8(max, diag, mask);
-    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(DIAGONAL), mask);
+    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi16(DIAGONAL), mask);
 
     //remove letter ↑ 
-    mask    = _mm256_cmpgt_epi32(up, max);
+    mask    = _mm256_cmpgt_epi16(up, max);
     max     = _mm256_blendv_epi8(max, up, mask);
-    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(UP), mask);
+    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi16(UP), mask);
 
     //insert letter ←
-    mask    = _mm256_cmpgt_epi32(left, max);
+    mask    = _mm256_cmpgt_epi16(left, max);
     max     = _mm256_blendv_epi8(max, left, mask);
-    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(LEFT), mask);
+    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi16(LEFT), mask);
 
     //Inserts the value in the similarity and predecessor matrixes
     _mm256_storeu_si256(HH, max);
     _mm256_storeu_si256(PP, pred);
-    
+    /*
     //Updates maximum score to be used as seed on backtrack 
     __m256i vmax = max;
     vmax = _mm256_max_epu32(vmax, _mm256_alignr_epi8(vmax, vmax, 4));
@@ -417,7 +417,7 @@ void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__
         *maxPos         = ind+max_index;
         *maxPos_max_len = max_len;
     }
-
+    */
 }  /* End of similarityScore */
 
 
@@ -436,7 +436,7 @@ int matchMissmatchScore(long long int i, long long int j) {
  * Function:    backtrack
  * Purpose:     Modify matrix to print, path change from value to PATH
  */
-void backtrack(int* P, long long int maxPos, long long int maxPos_max_len) {
+void backtrack(short int* P, long long int maxPos, long long int maxPos_max_len) {
     //hold maxPos value
     long long int predPos;
     long long int predMaxLen;
@@ -505,7 +505,7 @@ void backtrack(int* P, long long int maxPos, long long int maxPos_max_len) {
  * Function:    printMatrix
  * Purpose:     Print Matrix
  */
-void printMatrix(int* matrix) {
+void printMatrix(short int* matrix) {
     long long int i, j, ind;
     printf(" \t \t");
     for(i=0; i<m-1; i++)
@@ -534,7 +534,7 @@ void printMatrix(int* matrix) {
  * Function:    printPredecessorMatrix
  * Purpose:     Print predecessor matrix
  */
-void printPredecessorMatrix(int* matrix) {
+void printPredecessorMatrix(short int* matrix) {
     long long int i, j, ind;
     printf("    ");
     for(i=0; i<m-1; i++)
