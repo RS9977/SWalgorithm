@@ -1,12 +1,13 @@
+
 /***********************************************************************
  * Smith–Waterman algorithm
  * Purpose:     Local alignment of nucleotide or protein sequences
  * Authors:     Daniel Holanda, Hanoch Griner, Taynara Pinheiro
  ***********************************************************************/
-//This is the AVX512 version.
+//This is the mutlithreaded AVX512 version
 
 
-// gcc -mavx512f SWalgo_V3.c -lgomp -o SWalgo_V3
+// gcc -mavx512f SWalgo_V7.c -lpthread -lgomp -o SWalgo_V7
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +18,7 @@
 #include <immintrin.h>
 #include <stdbool.h>
 #include <sys/stat.h>
+#include <pthread.h>
 
 //#include <zmmintrin.h>
 
@@ -36,8 +38,9 @@
 #define LEFT 2
 #define DIAGONAL 3
 
-#define Vsize 16
-#define NumOfTest 10
+#define Vsize 64
+#define NumOfTest 1e2
+#define NumOfThreads 28
 
 //#define DEBUG
 //#define pragmas
@@ -48,7 +51,8 @@
  * Functions Prototypes
  */
 void similarityScore(long long int ind, long long int ind_u, long long int ind_d, long long int ind_l, long long int ii, long long int jj, int* H, int* P, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
-void similarityScoreIntrinsic(__m512i* H, __m512i* Hu, __m512i* Hd, __m512i* Hl, __m512i* P, __m512i ii, __m512i jj, int* H_main, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
+void similarityScoreIntrinsic(__m512i* H, __m512i* Hu, __m512i* Hd, __m512i* Hl, __m512i* P, long long int ii, long long int jj, int* H_main, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
+void* enitre_simiraity_pth_worker(void* in);
 int  matchMissmatchScore(long long int i, long long int j);
 void backtrack(int* P, long long int maxPos, long long int maxPos_max_len);
 void printMatrix(int* matrix);
@@ -57,12 +61,45 @@ void generate(void);
 /* End of prototypes */
 
 
+double interval(struct timespec start, struct timespec end)
+{
+  struct timespec temp;
+  temp.tv_sec = end.tv_sec - start.tv_sec;
+  temp.tv_nsec = end.tv_nsec - start.tv_nsec;
+  if (temp.tv_nsec < 0) {
+    temp.tv_sec = temp.tv_sec - 1;
+    temp.tv_nsec = temp.tv_nsec + 1000000000;
+  }
+  return (((double)temp.tv_sec) + ((double)temp.tv_nsec)*1.0e-9);
+}
+double wakeup_delay()
+{
+  double meas = 0; int j, i;
+  struct timespec time_start, time_stop;
+  double quasi_random = 0;
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time_start);
+  j = 100;
+  while (meas < 1.0) {
+    for (i=1; i<j; i++) {
+      /* This iterative calculation uses a chaotic map function, specifically
+         the complex quadratic map (as in Julia and Mandelbrot sets), which is
+         unpredictable enough to prevent compiler optimisation. */
+      quasi_random = quasi_random*quasi_random - 1.923432;
+    }
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time_stop);
+    meas = interval(time_start, time_stop);
+    j *= 2; /* Twice as much delay next time, until we've taken 1 second */
+  }
+  return quasi_random;
+}
+
 /*--------------------------------------------------------------------
  * Global Variables
  */
 //Defines size of strings to be compared
-long long int m = 11; //Columns - Size of string a
-long long int n = 7;  //Lines - Size of string b
+long long int m  = 3; //Columns - Size of string a
+long long int mm = 11;  //Lines - Size of string b
+long long int n  = 7;  //Lind for each chunck
 
 //Defines scores
 int matchScore = 5;
@@ -72,6 +109,12 @@ int gapScore = -4;
 //Strings over the Alphabet Sigma
 char *a, *b;
 
+
+typedef struct
+{
+    long long int start_ind;
+    int* H;
+}similarity_data;
 /* End of global variables */
 
 /*--------------------------------------------------------------------
@@ -81,39 +124,40 @@ int main(int argc, char* argv[]) {
     
     
     if(argc>1){
-        m = strtoll(argv[1], NULL, 10);
+        mm = strtoll(argv[1], NULL, 10);
         n = strtoll(argv[2], NULL, 10); 
         long long int temp;
-        if( m<n){
-            temp = m;
-            m = n;
+        if( mm<n){
+            temp = mm;
+            mm = n;
             n = temp;
         }
     }
     else{
-        m = 22;
-        n = 20;
+        mm = 10000;
+        n = 100;
     }
 
-
+    struct timespec time_start, time_stop;
     #ifdef DEBUG
     printf("\nMatrix[%lld][%lld]\n", n, m);
     #endif
 
     //Allocates a and b
-    a = malloc(m * sizeof(char));
+    a = malloc(mm * sizeof(char));
     b = malloc(n * sizeof(char));
     //Because now we have zeros
+    m = mm/NumOfThreads;
     m++;
     n++;
     
-    //Allocates similarity matrix H
+   //Allocates similarity matrix H
     int *H;
-    H = calloc(m * n, sizeof(int));
+    H = calloc(NumOfThreads * m * n, sizeof(int));
 
     //Allocates predecessor matrix P
     int *P;
-    P = calloc(m * n, sizeof(int));
+    P = calloc(NumOfThreads * m * n, sizeof(int));
 
 
     //Gen rand arrays a and b
@@ -147,8 +191,8 @@ int main(int argc, char* argv[]) {
     //Calculates the similarity matrix
     long long int i, j;
 
-    for(i=0; i<1e8; i++);
-
+    double ww = wakeup_delay();
+    
     double initialTime = omp_get_wtime();
     #ifdef pragmas
     #pragma GCC ivdep
@@ -164,9 +208,91 @@ int main(int argc, char* argv[]) {
         printf("%c ",b[i]);
     printf("\n");
     #endif
-
+double t1, t2, overall=100000000000;
     int it;
+    double finalTime;
+    
     for(it=0; it<NumOfTest; it++){
+        initialTime = omp_get_wtime();
+        pthread_t threads[NumOfThreads];
+        similarity_data thread_data_array[NumOfThreads];
+        int t;
+        int rc;          
+        for(t=0; t<NumOfThreads; t++){ 
+            thread_data_array[t].start_ind = t*m;  
+            thread_data_array[t].H         = (H+(t*m*n));        
+            rc = pthread_create(&threads[t], NULL, enitre_simiraity_pth_worker, (void*) &thread_data_array[t]);
+            if (rc) {
+                printf("ERROR; return code from pthread_create() is %d\n", rc);
+                exit(-1);
+            }
+        }
+        
+        for (t = 0; t<NumOfThreads; t++) {
+            if (pthread_join(threads[t], NULL)){ 
+                printf("ERROR; code on return from join is %d\n", rc);
+                exit(-1);
+            }
+        }
+        finalTime = omp_get_wtime();
+        double temp = finalTime-initialTime;
+        if (temp<overall)
+            overall = temp;
+    }
+    
+    //Gets final time
+    
+    
+    printf("\nww:%f Best Function time V8 for n(%lld), m(%lld) and threads(%d): %f", ww, n-1, m-1, overall, NumOfThreads);
+    printf("\nGCUPS: %f\n", 1e-9*(m-1)*(n-1)*NumOfThreads/overall);
+  
+    FILE *fp;
+    fp = fopen("Results.txt", "a");
+    fprintf(fp, "\nElapsed time V7 for n(%lld), m(%lld) and threads(%d): %f\n", n-1, m-1, ((finalTime - initialTime)-overall)/NumOfTest, NumOfThreads);
+    fclose(fp);
+
+    backtrack(P, maxPos, maxPos_max_len);
+
+    
+
+    #ifdef DEBUG
+    printf("\nSimilarity Matrix:\n");
+    printMatrix(H);
+
+    printf("\nPredecessor Matrix:\n");
+    printPredecessorMatrix(P);
+    #endif
+
+    //Frees similarity matrixes
+    free(H);
+    free(P);
+
+    //Frees input arrays
+    free(a);
+    free(b);
+
+    return 0;
+}  /* End of main */
+
+/*--------------------------------------------------------------------
+ * Function:    enitre_simiraity
+ * Purpose:     Compute each chunck of query
+ */
+
+void* enitre_simiraity_pth_worker(void* in){
+
+    similarity_data *inss = (similarity_data *) in;
+    long long int start_ind = inss -> start_ind;
+    int * H                 = inss -> H;
+    int * P;
+    //Allocates similarity matrix H
+
+    //Start position for backtrack
+    long long int maxPos         = 0;
+    long long int maxPos_max_len = 0;
+
+    //Calculates the similarity matrix
+    long long int i, j;
 
     long long int ind   = 3;
     long long int indd  = 0;
@@ -195,8 +321,8 @@ int main(int argc, char* argv[]) {
         }
 	    else{
 		    max_len   = n;
-            j_start = 1;
-            j_end   = max_len;
+            j_start   = 1;
+            j_end     = max_len;
             ind_u     = ind - max_len - 1;
             ind_l     = ind - max_len; 
             if(i>n)
@@ -213,17 +339,16 @@ int main(int argc, char* argv[]) {
         //int Vsize = 512/sizeof(typeof(H));
       //  #pragma gcc ivdep 
         for (j = j_start; j <j_end-Vsize+1; j+=Vsize) { //Columns   
-
-            __m512i Joffset = _mm512_add_epi32(offset, _mm512_set1_epi32(j));
-            __m512i Ioffset = _mm512_set1_epi32(i);
-            __mmask16 mask  = _mm512_cmpgt_epi32_mask(Ioffset,_mm512_set1_epi32(m));
-            __m512i I_J     = _mm512_sub_epi32(Ioffset, Joffset);
-            __m512i M_1_J   = _mm512_sub_epi32(_mm512_set1_epi32(m-1),Joffset);
-            __m512i II      = _mm512_mask_mov_epi32(I_J, mask, M_1_J);
-            __m512i IJ      = _mm512_add_epi32(Joffset, Ioffset);
-            __m512i I_MJ1   = _mm512_sub_epi32(IJ,_mm512_set1_epi32(m-1));
-            __m512i JJ      = _mm512_mask_mov_epi32(Joffset, mask, I_MJ1);
-            similarityScoreIntrinsic(HH, Hu, Hd, Hl, PP, II, JJ, H, ind, max_len, &maxPos, &maxPos_max_len);
+         for(;j<j_end; j++){
+            if (i<m){
+                ii = i-j+start_ind;
+                jj = j;
+            }
+            else{
+                ii = m-1-j+start_ind;
+                jj = i-m+j+1;
+            }  
+            similarityScoreIntrinsic(HH, Hu, Hd, Hl, PP, ii, jj, H, ind, max_len, &maxPos, &maxPos_max_len);
             Hu++;
             Hl++;
             Hd++;
@@ -233,50 +358,19 @@ int main(int argc, char* argv[]) {
         
          for(;j<j_end; j++){
             if (i<m){
-                ii = i-j;
+                ii = i-j+start_ind;
                 jj = j;
             }
             else{
-                ii = m-1-j;
+                ii = m-1-j+start_ind;
                 jj = i-m+j+1;
             }      
             similarityScore(ind+j, ind_u+j, ind_d+j, ind_l+j, ii, jj, H, P, max_len, &maxPos, &maxPos_max_len);
         }
         ind += max_len;
+        }
     }
-    
-    }
-    //Gets final time
-    double finalTime = omp_get_wtime();
-    printf("\nElapsed time V3 for n(%lld) and m(%lld): %f\n", n-1, m-1, (finalTime - initialTime)/NumOfTest);
-
-    FILE *fp;
-    fp = fopen("Results.txt", "a");
-    fprintf(fp, "\nElapsed time V3 for n(%lld) and m(%lld): %f\n", n-1, m-1, (finalTime - initialTime)/NumOfTest);
-    fclose(fp);
-
-    backtrack(P, maxPos, maxPos_max_len);
-
-    
-
-    #ifdef DEBUG
-    printf("\nSimilarity Matrix:\n");
-    printMatrix(H);
-
-    printf("\nPredecessor Matrix:\n");
-    printPredecessorMatrix(P);
-    #endif
-
-    //Frees similarity matrixes
-    free(H);
-    free(P);
-
-    //Frees input arrays
-    free(a);
-    free(b);
-
-    return 0;
-}  /* End of main */
+}
 
 
 /*--------------------------------------------------------------------
@@ -288,7 +382,7 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
     int up, left, diag;
 
     //Get element above
-    up = H[ind_u] + gapScore;
+    up   = H[ind_u] + gapScore;
 
     //Get element on the left
     left = H[ind_l] + gapScore;
@@ -298,7 +392,7 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
 
     //Calculates the maximum
     int max = NONE;
-    int pred = NONE;
+  //  int pred = NONE;
     /* === Matrix ===
      *      a[0] ... a[n] 
      * b[0]
@@ -316,32 +410,32 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
     
     if (diag > max) { //same letter ↖
         max = diag;
-        pred = DIAGONAL;
+      //  pred = DIAGONAL;
     }
 
     if (up > max) { //remove letter ↑ 
         max = up;
-        pred = UP;
+    //    pred = UP;
     }
     
     if (left > max) { //insert letter ←
         max = left;
-        pred = LEFT;
+   //     pred = LEFT;
     }
     //Inserts the value in the similarity and predecessor matrixes
     H[ind] = max;
-    P[ind] = pred;
+ //   P[ind] = pred;
 
     //Updates maximum score to be used as seed on backtrack 
-    if (max > H[*maxPos]) {
-        *maxPos = ind;
+ /*   if (max > H[*maxPos]) {
+        *maxPos         = ind;
         *maxPos_max_len = max_len;
-    }
+    }*/
 
 }  /* End of similarityScore */
 
 
-void similarityScoreIntrinsic(__m512i* HH, __m512i* Hu, __m512i* Hd, __m512i* Hl, __m512i* PP, __m512i ii, __m512i jj, int* H, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
+void similarityScoreIntrinsic(__m512i* HH, __m512i* Hu, __m512i* Hd, __m512i* Hl, __m512i* PP, long long int ii, long long int jj, int* H, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
 
     __m512i up, left, diag;
 
@@ -350,25 +444,29 @@ void similarityScoreIntrinsic(__m512i* HH, __m512i* Hu, __m512i* Hd, __m512i* Hl
     __m512i HHl = _mm512_loadu_si512(Hl);
 
     //Get element above
-    up                     = _mm512_add_epi32(HHu, _mm512_set1_epi32(gapScore));
+    up                     = _mm512_add_epi8(HHu, _mm512_set1_epi8(gapScore));
 
     //Get element on the left
-    left                   = _mm512_add_epi32(HHl, _mm512_set1_epi32(gapScore));
+    left                   = _mm512_add_epi8(HHl, _mm512_set1_epi8(gapScore));
 
     //Get element on the diagonal
-    __m512i A              = _mm512_i32gather_epi32(_mm512_sub_epi32(ii,_mm512_set1_epi32(1)), (void*)a, sizeof(char));
-    __m512i B              = _mm512_i32gather_epi32(_mm512_sub_epi32(jj,_mm512_set1_epi32(1)), (void*)b, sizeof(char));
-    A                      = _mm512_slli_epi32(A,24);
-    B                      = _mm512_slli_epi32(B,24);
-    __mmask16 mask         = _mm512_cmpeq_epi32_mask(A,B);
-    __m512i MATCHSCORE     = _mm512_set1_epi32(matchScore);
-    __m512i MISSMATCHSCORE = _mm512_set1_epi32(missmatchScore);
-    __m512i MATCHMISS      = _mm512_mask_mov_epi32(MISSMATCHSCORE, mask, MATCHSCORE);
-    diag                   = _mm512_add_epi32(HHd, MATCHMISS);
+    __m512i A = _mm512_loadu_si512(a+ii-64);
+            A = _mm512_shuffle_epi8(A, _mm512_set_epi8(63, 62, 61, 60, 59, 58, 57, 56, 55, 54, 53, 52, 51, 50, 49, 48,
+                                                       47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 32,
+                                                       31, 30, 29, 28, 27, 26, 25, 24, 23, 22, 21, 20, 19, 18, 17, 16,
+                                                       15, 14, 13, 12, 11, 10,  9,  8,  7,  6,  5,  4,  3,  2,  1,  0));
+    __m512i B = _mm512_loadu_si512(b+jj);
+   // A                      = _mm512_slli_epi32(A,24);
+   // B                      = _mm512_slli_epi32(B,24);
+    __mmask16 mask         = _mm512_cmpeq_epi8_mask(A,B);
+    __m512i MATCHSCORE     = _mm512_set1_epi8(matchScore);
+    __m512i MISSMATCHSCORE = _mm512_set1_epi8(missmatchScore);
+    __m512i MATCHMISS      = _mm512_mask_mov_epi8(MISSMATCHSCORE, mask, MATCHSCORE);
+    diag                   = _mm512_add_epi8(HHd, MATCHMISS);
 
 
     //Calculates the maximum
-    __m512i max  = _mm512_set1_epi32(NONE);
+    __m512i max  = _mm512_set1_epi8(NONE);
   //  __m512i pred = _mm512_set1_epi32(NONE);
 
     /* === Matrix ===
@@ -386,19 +484,19 @@ void similarityScoreIntrinsic(__m512i* HH, __m512i* Hu, __m512i* Hd, __m512i* Hl
      * a=GAATTCA
     */
    //same letter ↖
-    mask = _mm512_cmpgt_epi32_mask(max, diag);
-    max  = _mm512_mask_mov_epi32(diag, mask, max);
+    mask = _mm512_cmpgt_epi8_mask(max, diag);
+    max  = _mm512_mask_mov_epi8(diag, mask, max);
  //   pred = _mm512_mask_mov_epi32(_mm512_set1_epi32(DIAGONAL), mask, pred);
 
     //remove letter ↑ 
-    mask = _mm512_cmpgt_epi32_mask(max, up);
-    max  = _mm512_mask_mov_epi32(up, mask, max);
+    mask = _mm512_cmpgt_epi8_mask(max, up);
+    max  = _mm512_mask_mov_epi8(up, mask, max);
  //   pred = _mm512_mask_mov_epi32(_mm512_set1_epi32(UP), mask, pred);
    
 
     //insert letter ←
-    mask = _mm512_cmpgt_epi32_mask(max, left);
-    max  = _mm512_mask_mov_epi32(left, mask, max);
+    mask = _mm512_cmpgt_epi8_mask(max, left);
+    max  = _mm512_mask_mov_epi8(left, mask, max);
  //   pred = _mm512_mask_mov_epi32(_mm512_set1_epi32(LEFT), mask, pred);
     
     //Inserts the value in the similarity and predecessor matrixes

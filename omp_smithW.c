@@ -1,14 +1,16 @@
-/***********************************************************************
+/*********************************************************************************
  * Smith–Waterman algorithm
  * Purpose:     Local alignment of nucleotide or protein sequences
  * Authors:     Daniel Holanda, Hanoch Griner, Taynara Pinheiro
- ***********************************************************************/
+ * Compilation: gcc omp_smithW.c -o omp_smithW -fopenmp -DDEBUG
+ * Execution:	./omp_smithW <number_of_threads> <number_of_col> <number_of_rows>
+ *********************************************************************************/
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <omp.h>
-#include <sys/stat.h>
+#include <time.h>
 
 /*--------------------------------------------------------------------
  * Text Tweaks
@@ -25,11 +27,16 @@
 #define UP 1
 #define LEFT 2
 #define DIAGONAL 3
-#define NumOfTest 1//1e2//1e4
-
-//#define DEBUG
-//#define pragmas
 /* End of constants */
+
+/*--------------------------------------------------------------------
+* Helpers
+*/
+#define min(x, y) (((x) < (y)) ? (x) : (y))
+#define max(a,b) ((a) > (b) ? a : b)
+
+// #define DEBUG
+/* End of Helpers */
 
 
 /*--------------------------------------------------------------------
@@ -41,6 +48,9 @@ void backtrack(int* P, long long int maxPos);
 void printMatrix(int* matrix);
 void printPredecessorMatrix(int* matrix);
 void generate(void);
+long long int nElement(long long int i);
+void calcFirstDiagElement(long long int *i, long long int *si, long long int *sj);
+
 /* End of prototypes */
 
 
@@ -48,13 +58,13 @@ void generate(void);
  * Global Variables
  */
 //Defines size of strings to be compared
-long long int m = 11; //Columns - Size of string a
-long long int n = 7;  //Lines - Size of string b
+long long int m ; //Columns - Size of string a
+long long int n ;  //Lines - Size of string b
 
 //Defines scores
 int matchScore = 5;
 int missmatchScore = -3;
-int gapScore = -4; 
+int gapScore = -4;
 
 //Strings over the Alphabet Sigma
 char *a, *b;
@@ -65,34 +75,22 @@ char *a, *b;
  * Function:    main
  */
 int main(int argc, char* argv[]) {
-    
-    if(argc>1){
-        m = strtoll(argv[1], NULL, 10);
-        n = strtoll(argv[2], NULL, 10); 
-        long long int temp;
-        if( m<n){
-            temp = m;
-            m = n;
-            n = temp;
-        }
-    }
-    else{
-        m = 6;
-        n = 2;
-    }
-    
-    #ifdef DEBUG
+    int thread_count = strtol(argv[1], NULL, 10);
+    m = strtoll(argv[2], NULL, 10);
+    n = strtoll(argv[3], NULL, 10);
+
+#ifdef DEBUG
     printf("\nMatrix[%lld][%lld]\n", n, m);
-    #endif
+#endif
 
     //Allocates a and b
     a = malloc(m * sizeof(char));
     b = malloc(n * sizeof(char));
-    
+
     //Because now we have zeros
     m++;
     n++;
-    
+
     //Allocates similarity matrix H
     int *H;
     H = calloc(m * n, sizeof(int));
@@ -104,6 +102,10 @@ int main(int argc, char* argv[]) {
 
     //Gen rand arrays a and b
     generate();
+
+    //Uncomment this to test the sequence available at 
+    //http://vlab.amrita.edu/?sub=3&brch=274&sim=1433&cnt=1
+    // OBS: m=11 n=7
     // a[0] =   'C';
     // a[1] =   'G';
     // a[2] =   'T';
@@ -123,61 +125,52 @@ int main(int argc, char* argv[]) {
     // b[4] =   'T';
     // b[5] =   'A';
     // b[6] =   'C';
-    
+
+
     //Start position for backtrack
     long long int maxPos = 0;
-
     //Calculates the similarity matrix
     long long int i, j;
 
-
-    #ifdef DEBUG
-    printf("\n a string:\n");
-    for(i=0; i<m-1; i++)
-        printf("%c ",a[i]);
-    printf("\n b string:\n");
-    for(i=0; i<n-1; i++)
-        printf("%c ",b[i]);
-    printf("\n");
-    #endif
-
-    
-
+    //Gets Initial time
     double initialTime = omp_get_wtime();
-    #ifdef pragmas
-    #pragma GCC ivdep
-    #endif
-    int it;
-    for(it=0; it<NumOfTest; it++){
-  
-    for (i = 1; i < n; i++) { //Lines
-        for (j = 1; j < m; j++) { //Columns
-        
-            similarityScore(i, j, H, P, &maxPos);
+
+    long long int si, sj, ai, aj;
+
+    //Because now we have zeros ((m-1) + (n-1) - 1)
+    long long int nDiag = m + n - 3;
+    long long int nEle;
+
+    #pragma omp parallel num_threads(thread_count) \
+    default(none) shared(H, P, maxPos, nDiag) private(nEle, i, si, sj, ai, aj)
+    {
+        for (i = 1; i <= nDiag; ++i)
+        {
+            nEle = nElement(i);
+            calcFirstDiagElement(&i, &si, &sj);
+            #pragma omp for
+            for (j = 1; j <= nEle; ++j)
+            {
+                ai = si - j + 1;
+                aj = sj + j - 1;
+                similarityScore(ai, aj, H, P, &maxPos);
+            }
         }
     }
-   
 
     backtrack(P, maxPos);
-    }
 
     //Gets final time
     double finalTime = omp_get_wtime();
+    printf("\nElapsed time: %f\n\n", finalTime - initialTime);
 
-    printf("\nElapsed time: %f\n\n", (finalTime - initialTime)/NumOfTest);
-
-    FILE *fp;
-    fp = fopen("Results.txt", "w");
-    fprintf(fp, "Elapsed time V1: %lf\n", (finalTime - initialTime)/NumOfTest);
-    fclose(fp);
-
-    #ifdef DEBUG
+#ifdef DEBUG
     printf("\nSimilarity Matrix:\n");
     printMatrix(H);
 
     printf("\nPredecessor Matrix:\n");
     printPredecessorMatrix(P);
-    #endif
+#endif
 
     //Frees similarity matrixes
     free(H);
@@ -190,6 +183,41 @@ int main(int argc, char* argv[]) {
     return 0;
 }  /* End of main */
 
+/*--------------------------------------------------------------------
+ * Function:    nElement
+ * Purpose:     Calculate the number of i-diagonal elements
+ */
+long long int nElement(long long int i) {
+    if (i < m && i < n) {
+        //Number of elements in the diagonal is increasing
+        return i;
+    }
+    else if (i < max(m, n)) {
+        //Number of elements in the diagonal is stable
+        long int min = min(m, n);
+        return min - 1;
+    }
+    else {
+        //Number of elements in the diagonal is decreasing
+        long int min = min(m, n);
+        return 2 * min - i + abs(m - n) - 2;
+    }
+}
+
+/*--------------------------------------------------------------------
+ * Function:    calcElement
+ * Purpose:     Calculate the position of (si, sj)-element
+ */
+void calcFirstDiagElement(long long int *i, long long int *si, long long int *sj) {
+    // Calculate the first element of diagonal
+    if (*i < n) {
+        *si = *i;
+        *sj = 1;
+    } else {
+        *si = n - 1;
+        *sj = *i - n + 2;
+    }
+}
 
 /*--------------------------------------------------------------------
  * Function:    SimilarityScore
@@ -215,7 +243,7 @@ void similarityScore(long long int i, long long int j, int* H, int* P, long long
     int max = NONE;
     int pred = NONE;
     /* === Matrix ===
-     *      a[0] ... a[n] 
+     *      a[0] ... a[n]
      * b[0]
      * ...
      * b[n]
@@ -223,22 +251,22 @@ void similarityScore(long long int i, long long int j, int* H, int* P, long long
      * generate 'a' from 'b', if '←' insert e '↑' remove
      * a=GAATTCA
      * b=GACTT-A
-     * 
+     *
      * generate 'b' from 'a', if '←' insert e '↑' remove
      * b=GACTT-A
      * a=GAATTCA
     */
-    
+
     if (diag > max) { //same letter ↖
         max = diag;
         pred = DIAGONAL;
     }
 
-    if (up > max) { //remove letter ↑ 
+    if (up > max) { //remove letter ↑
         max = up;
         pred = UP;
     }
-    
+
     if (left > max) { //insert letter ←
         max = left;
         pred = LEFT;
@@ -247,8 +275,9 @@ void similarityScore(long long int i, long long int j, int* H, int* P, long long
     H[index] = max;
     P[index] = pred;
 
-    //Updates maximum score to be used as seed on backtrack 
-    if (max > H[*maxPos]) {
+    //Updates maximum score to be used as seed on backtrack
+    #pragma omp critical
+    if (max > H[*maxPos]) {        
         *maxPos = index;
     }
 
@@ -260,7 +289,7 @@ void similarityScore(long long int i, long long int j, int* H, int* P, long long
  * Purpose:     Similarity function on the alphabet for match/missmatch
  */
 int matchMissmatchScore(long long int i, long long int j) {
-    if (a[j-1] == b[i-1])
+    if (a[j - 1] == b[i - 1])
         return matchScore;
     else
         return missmatchScore;
@@ -273,20 +302,18 @@ int matchMissmatchScore(long long int i, long long int j) {
 void backtrack(int* P, long long int maxPos) {
     //hold maxPos value
     long long int predPos;
-    #ifdef pragmas
-    #pragma GCC ivdep
-    #endif
-    //backtrack from maxPos to startPos = 0 
+
+    //backtrack from maxPos to startPos = 0
     do {
-        if(P[maxPos] == DIAGONAL)
+        if (P[maxPos] == DIAGONAL)
             predPos = maxPos - m - 1;
-        else if(P[maxPos] == UP)
+        else if (P[maxPos] == UP)
             predPos = maxPos - m;
-        else if(P[maxPos] == LEFT)
+        else if (P[maxPos] == LEFT)
             predPos = maxPos - 1;
-        P[maxPos]*=PATH;
+        P[maxPos] *= PATH;
         maxPos = predPos;
-    } while(P[maxPos] != NONE);
+    } while (P[maxPos] != NONE);
 }  /* End of backtrack */
 
 /*--------------------------------------------------------------------
@@ -295,18 +322,15 @@ void backtrack(int* P, long long int maxPos) {
  */
 void printMatrix(int* matrix) {
     long long int i, j;
-    printf(" \t \t");
-    for(i=0; i<m-1; i++)
-        printf("%c\t",a[i]);
-    printf("\n");
+    printf("-\t-\t");
+    for (j = 0; j < m-1; j++) {
+    	printf("%c\t", a[j]);
+    }
+    printf("\n-\t");
     for (i = 0; i < n; i++) { //Lines
-        for (j = -1; j < m; j++) {
-            if(i+j<0)
-                printf(" \t");
-            else if(j==-1 && i>0)
-                printf("%c\t",b[i-1]); 
-            else
-                printf("%d\t", matrix[m * i + j]);
+        for (j = 0; j < m; j++) {  
+        	if (j==0 && i>0) printf("%c\t", b[i-1]);
+            printf("%d\t", matrix[m * i + j]);
         }
         printf("\n");
     }
@@ -320,38 +344,34 @@ void printMatrix(int* matrix) {
 void printPredecessorMatrix(int* matrix) {
     long long int i, j, index;
     printf("    ");
-    for(i=0; i<m-1; i++)
-        printf("%c ",a[i]);
-    printf("\n");
+    for (j = 0; j < m-1; j++) {
+    	printf("%c ", a[j]);
+    }
+    printf("\n  ");
     for (i = 0; i < n; i++) { //Lines
-        for (j = -1; j < m; j++) {
-            if(i+j<0)
-                printf("  ");
-            else if(j==-1 && i>0)
-                printf("%c ",b[i-1]); 
-            else{
-                index = m * i + j;
-                if(matrix[index] < 0) {
-                    printf(BOLDRED);
-                    if (matrix[index] == -UP)
-                        printf("↑ ");
-                    else if (matrix[index] == -LEFT)
-                        printf("← ");
-                    else if (matrix[index] == -DIAGONAL)
-                        printf("↖ ");
-                    else
-                        printf("- ");
-                    printf(RESET);
-                } else {
-                    if (matrix[index] == UP)
-                        printf("↑ ");
-                    else if (matrix[index] == LEFT)
-                        printf("← ");
-                    else if (matrix[index] == DIAGONAL)
-                        printf("↖ ");
-                    else
-                        printf("- ");
-            }
+        for (j = 0; j < m; j++) {
+        	if (j==0 && i>0) printf("%c ", b[i-1]);
+            index = m * i + j;
+            if (matrix[index] < 0) {
+                printf(BOLDRED);
+                if (matrix[index] == -UP)
+                    printf("↑ ");
+                else if (matrix[index] == -LEFT)
+                    printf("← ");
+                else if (matrix[index] == -DIAGONAL)
+                    printf("↖ ");
+                else
+                    printf("- ");
+                printf(RESET);
+            } else {
+                if (matrix[index] == UP)
+                    printf("↑ ");
+                else if (matrix[index] == LEFT)
+                    printf("← ");
+                else if (matrix[index] == DIAGONAL)
+                    printf("↖ ");
+                else
+                    printf("- ");
             }
         }
         printf("\n");
@@ -363,32 +383,35 @@ void printPredecessorMatrix(int* matrix) {
  * Function:    generate
  * Purpose:     Generate arrays a and b
  */
- void generate(){
+void generate() {
+    //Random seed
+    srand(time(NULL));
+
     //Generates the values of a
     long long int i;
-    for(i=0;i<m;i++){
-        int aux=rand()%4;
-        if(aux==0)
-            a[i]='A';
-        else if(aux==2)
-            a[i]='C';
-        else if(aux==3)
-            a[i]='G';
+    for (i = 0; i < m; i++) {
+        int aux = rand() % 4;
+        if (aux == 0)
+            a[i] = 'A';
+        else if (aux == 2)
+            a[i] = 'C';
+        else if (aux == 3)
+            a[i] = 'G';
         else
-            a[i]='T';
+            a[i] = 'T';
     }
 
     //Generates the values of b
-    for(i=0;i<n;i++){
-        int aux=rand()%4;
-        if(aux==0)
-            b[i]='A';
-        else if(aux==2)
-            b[i]='C';
-        else if(aux==3)
-            b[i]='G';
+    for (i = 0; i < n; i++) {
+        int aux = rand() % 4;
+        if (aux == 0)
+            b[i] = 'A';
+        else if (aux == 2)
+            b[i] = 'C';
+        else if (aux == 3)
+            b[i] = 'G';
         else
-            b[i]='T';
+            b[i] = 'T';
     }
 } /* End of generate */
 

@@ -1,12 +1,13 @@
+
 /***********************************************************************
  * Smith–Waterman algorithm
  * Purpose:     Local alignment of nucleotide or protein sequences
  * Authors:     Daniel Holanda, Hanoch Griner, Taynara Pinheiro
  ***********************************************************************/
-//This is the AVX512 version.
+//This is the mutlithreaded AVX512 version
 
 
-// gcc -mavx512f SWalgo_V3.c -lgomp -o SWalgo_V3
+// gcc -mavx512f SWalgo_V7.c -lpthread -lgomp -o SWalgo_V7
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +18,7 @@
 #include <immintrin.h>
 #include <stdbool.h>
 #include <sys/stat.h>
+#include <pthread.h>
 
 //#include <zmmintrin.h>
 
@@ -37,7 +39,8 @@
 #define DIAGONAL 3
 
 #define Vsize 16
-#define NumOfTest 10
+#define NumOfTest 1e3
+#define NumOfThreads 20
 
 //#define DEBUG
 //#define pragmas
@@ -49,6 +52,7 @@
  */
 void similarityScore(long long int ind, long long int ind_u, long long int ind_d, long long int ind_l, long long int ii, long long int jj, int* H, int* P, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
 void similarityScoreIntrinsic(__m512i* H, __m512i* Hu, __m512i* Hd, __m512i* Hl, __m512i* P, __m512i ii, __m512i jj, int* H_main, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
+void* enitre_simiraity_pth_worker(void* in);
 int  matchMissmatchScore(long long int i, long long int j);
 void backtrack(int* P, long long int maxPos, long long int maxPos_max_len);
 void printMatrix(int* matrix);
@@ -61,8 +65,9 @@ void generate(void);
  * Global Variables
  */
 //Defines size of strings to be compared
-long long int m = 11; //Columns - Size of string a
-long long int n = 7;  //Lines - Size of string b
+long long int m  = 3; //Columns - Size of string a
+long long int mm = 11;  //Lines - Size of string b
+long long int n  = 7;  //Lind for each chunck
 
 //Defines scores
 int matchScore = 5;
@@ -72,6 +77,12 @@ int gapScore = -4;
 //Strings over the Alphabet Sigma
 char *a, *b;
 
+
+typedef struct
+{
+    long long int start_ind;
+    int* H;
+}similarity_data;
 /* End of global variables */
 
 /*--------------------------------------------------------------------
@@ -81,18 +92,18 @@ int main(int argc, char* argv[]) {
     
     
     if(argc>1){
-        m = strtoll(argv[1], NULL, 10);
+        mm = strtoll(argv[1], NULL, 10);
         n = strtoll(argv[2], NULL, 10); 
         long long int temp;
-        if( m<n){
-            temp = m;
-            m = n;
+        if( mm<n){
+            temp = mm;
+            mm = n;
             n = temp;
         }
     }
     else{
-        m = 22;
-        n = 20;
+        mm = 10000;
+        n = 100;
     }
 
 
@@ -101,19 +112,20 @@ int main(int argc, char* argv[]) {
     #endif
 
     //Allocates a and b
-    a = malloc(m * sizeof(char));
+    a = malloc(mm * sizeof(char));
     b = malloc(n * sizeof(char));
     //Because now we have zeros
+    m = mm/NumOfThreads;
     m++;
     n++;
     
     //Allocates similarity matrix H
     int *H;
-    H = calloc(m * n, sizeof(int));
+    H = calloc(NumOfThreads * m * n, sizeof(int));
 
     //Allocates predecessor matrix P
     int *P;
-    P = calloc(m * n, sizeof(int));
+    P = calloc(NumOfThreads * m * n, sizeof(int));
 
 
     //Gen rand arrays a and b
@@ -147,7 +159,8 @@ int main(int argc, char* argv[]) {
     //Calculates the similarity matrix
     long long int i, j;
 
-    for(i=0; i<1e8; i++);
+    long long int ww;
+    for(ww=0; ww<1e9; ww++);
 
     double initialTime = omp_get_wtime();
     #ifdef pragmas
@@ -164,9 +177,81 @@ int main(int argc, char* argv[]) {
         printf("%c ",b[i]);
     printf("\n");
     #endif
-
+    double t1, t2, overall=0;
     int it;
     for(it=0; it<NumOfTest; it++){
+
+        pthread_t threads[NumOfThreads];
+        similarity_data thread_data_array[NumOfThreads];
+        int t;
+        int rc;          
+        for(t=0; t<NumOfThreads; t++){ 
+            thread_data_array[t].start_ind = t*m;  
+            thread_data_array[t].H         = (H+(t*m*n));        
+            rc = pthread_create(&threads[t], NULL, enitre_simiraity_pth_worker, (void*) &thread_data_array[t]);
+            if (rc) {
+                printf("ERROR; return code from pthread_create() is %d\n", rc);
+                exit(-1);
+            }
+        }
+        for (t = 0; t<NumOfThreads; t++) {
+            if (pthread_join(threads[t], NULL)){ 
+                printf("ERROR; code on return from join is %d\n", rc);
+                exit(-1);
+            }
+        }
+    }
+    //Gets final time
+    double finalTime = omp_get_wtime();
+    printf("\nww:%lld Elapsed time V7 for n(%lld), m(%lld) and threads(%d): %f\n", ww, n-1, m-1, ((finalTime - initialTime)-overall)/NumOfTest, NumOfThreads);
+
+    FILE *fp;
+    fp = fopen("Results.txt", "a");
+    fprintf(fp, "\nElapsed time V7 for n(%lld), m(%lld) and threads(%d): %f\n", n-1, m-1, ((finalTime - initialTime)-overall)/NumOfTest, NumOfThreads);
+    fclose(fp);
+
+    backtrack(P, maxPos, maxPos_max_len);
+
+    
+
+    #ifdef DEBUG
+    printf("\nSimilarity Matrix:\n");
+    printMatrix(H);
+
+    printf("\nPredecessor Matrix:\n");
+    printPredecessorMatrix(P);
+    #endif
+
+    //Frees similarity matrixes
+    free(H);
+    free(P);
+
+    //Frees input arrays
+    free(a);
+    free(b);
+
+    return 0;
+}  /* End of main */
+
+/*--------------------------------------------------------------------
+ * Function:    enitre_simiraity
+ * Purpose:     Compute each chunck of query
+ */
+
+void* enitre_simiraity_pth_worker(void* in){
+
+    similarity_data *inss = (similarity_data *) in;
+    long long int start_ind = inss -> start_ind;
+    int * H                 = inss -> H;
+    int * P;
+    //Allocates similarity matrix H
+
+    //Start position for backtrack
+    long long int maxPos         = 0;
+    long long int maxPos_max_len = 0;
+
+    //Calculates the similarity matrix
+    long long int i, j;
 
     long long int ind   = 3;
     long long int indd  = 0;
@@ -195,8 +280,8 @@ int main(int argc, char* argv[]) {
         }
 	    else{
 		    max_len   = n;
-            j_start = 1;
-            j_end   = max_len;
+            j_start   = 1;
+            j_end     = max_len;
             ind_u     = ind - max_len - 1;
             ind_l     = ind - max_len; 
             if(i>n)
@@ -223,6 +308,7 @@ int main(int argc, char* argv[]) {
             __m512i IJ      = _mm512_add_epi32(Joffset, Ioffset);
             __m512i I_MJ1   = _mm512_sub_epi32(IJ,_mm512_set1_epi32(m-1));
             __m512i JJ      = _mm512_mask_mov_epi32(Joffset, mask, I_MJ1);
+            II              = _mm512_add_epi32(II, _mm512_set1_epi32(start_ind));
             similarityScoreIntrinsic(HH, Hu, Hd, Hl, PP, II, JJ, H, ind, max_len, &maxPos, &maxPos_max_len);
             Hu++;
             Hl++;
@@ -233,50 +319,18 @@ int main(int argc, char* argv[]) {
         
          for(;j<j_end; j++){
             if (i<m){
-                ii = i-j;
+                ii = i-j+start_ind;
                 jj = j;
             }
             else{
-                ii = m-1-j;
+                ii = m-1-j+start_ind;
                 jj = i-m+j+1;
             }      
             similarityScore(ind+j, ind_u+j, ind_d+j, ind_l+j, ii, jj, H, P, max_len, &maxPos, &maxPos_max_len);
         }
         ind += max_len;
     }
-    
-    }
-    //Gets final time
-    double finalTime = omp_get_wtime();
-    printf("\nElapsed time V3 for n(%lld) and m(%lld): %f\n", n-1, m-1, (finalTime - initialTime)/NumOfTest);
-
-    FILE *fp;
-    fp = fopen("Results.txt", "a");
-    fprintf(fp, "\nElapsed time V3 for n(%lld) and m(%lld): %f\n", n-1, m-1, (finalTime - initialTime)/NumOfTest);
-    fclose(fp);
-
-    backtrack(P, maxPos, maxPos_max_len);
-
-    
-
-    #ifdef DEBUG
-    printf("\nSimilarity Matrix:\n");
-    printMatrix(H);
-
-    printf("\nPredecessor Matrix:\n");
-    printPredecessorMatrix(P);
-    #endif
-
-    //Frees similarity matrixes
-    free(H);
-    free(P);
-
-    //Frees input arrays
-    free(a);
-    free(b);
-
-    return 0;
-}  /* End of main */
+}
 
 
 /*--------------------------------------------------------------------
@@ -288,7 +342,7 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
     int up, left, diag;
 
     //Get element above
-    up = H[ind_u] + gapScore;
+    up   = H[ind_u] + gapScore;
 
     //Get element on the left
     left = H[ind_l] + gapScore;
@@ -298,7 +352,7 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
 
     //Calculates the maximum
     int max = NONE;
-    int pred = NONE;
+  //  int pred = NONE;
     /* === Matrix ===
      *      a[0] ... a[n] 
      * b[0]
@@ -316,27 +370,27 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
     
     if (diag > max) { //same letter ↖
         max = diag;
-        pred = DIAGONAL;
+      //  pred = DIAGONAL;
     }
 
     if (up > max) { //remove letter ↑ 
         max = up;
-        pred = UP;
+    //    pred = UP;
     }
     
     if (left > max) { //insert letter ←
         max = left;
-        pred = LEFT;
+   //     pred = LEFT;
     }
     //Inserts the value in the similarity and predecessor matrixes
     H[ind] = max;
-    P[ind] = pred;
+ //   P[ind] = pred;
 
     //Updates maximum score to be used as seed on backtrack 
-    if (max > H[*maxPos]) {
-        *maxPos = ind;
+ /*   if (max > H[*maxPos]) {
+        *maxPos         = ind;
         *maxPos_max_len = max_len;
-    }
+    }*/
 
 }  /* End of similarityScore */
 

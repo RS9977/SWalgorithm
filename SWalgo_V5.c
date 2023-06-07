@@ -3,6 +3,8 @@
  * Purpose:     Local alignment of nucleotide or protein sequences
  * Authors:     Daniel Holanda, Hanoch Griner, Taynara Pinheiro
  ***********************************************************************/
+//This is the pthread version which is working but is slow
+
 //gcc -O1 -mavx2 SWalgo_V5.c -lpthread -lgomp -o SWalgo_V5
 #include <stdio.h>
 #include <stdlib.h>

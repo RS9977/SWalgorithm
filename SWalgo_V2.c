@@ -4,12 +4,14 @@
  * Authors:     Daniel Holanda, Hanoch Griner, Taynara Pinheiro
  ***********************************************************************/
 
+//This is the serial verison of Parsing Matrix Diagnally
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <omp.h>
 #include <stdbool.h>
-
+#include <sys/stat.h>
 /*--------------------------------------------------------------------
  * Text Tweaks
  */
@@ -26,10 +28,10 @@
 #define LEFT 2
 #define DIAGONAL 3
 
-#define DEBUG
+//#define DEBUG
 //#define pragmas
 /* End of constants */
-
+#define NumOfTest 1e2//1e4
 
 /*--------------------------------------------------------------------
  * Functions Prototypes
@@ -150,6 +152,9 @@ int main(int argc, char* argv[]) {
     printf("\n");
     #endif
 
+    int it;
+    for(it=0; it<NumOfTest; it++){
+
     long long int ind = 3;
     long long int ind_u, ind_d, ind_l; 
     for (i = 2; i < m+n-1; i++) { //Lines
@@ -203,10 +208,16 @@ int main(int argc, char* argv[]) {
     
 
     backtrack(P, maxPos, maxPos_max_len);
+    }
 
     //Gets final time
     double finalTime = omp_get_wtime();
-    printf("\nElapsed time: %f\n\n", finalTime - initialTime);
+    printf("\nElapsed time: %f\n\n", (finalTime - initialTime)/NumOfTest);
+
+    FILE *fp;
+    fp = fopen("Results.txt", "a");
+    fprintf(fp, "Elapsed time V2: %lf\n", (finalTime - initialTime)/NumOfTest);
+    fclose(fp);
 
     #ifdef DEBUG
     printf("\nSimilarity Matrix:\n");
@@ -393,7 +404,7 @@ void printMatrix(int* matrix) {
             else if(j==-1 && i>0)
                 printf("%c\t",b[i-1]); 
             else
-                printf("%d\t", ind);//matrix[ind]);
+                printf("%d\t", matrix[ind]);
         }
         printf("\n");
     }

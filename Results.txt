@@ -1,0 +1,203 @@
+Elapsed time V1: 26.416291
+
+Elapsed time V8 for n(100), m(500) and threads(200): 0.010506
+
+Elapsed time V8 for n(100), m(500) and threads(200): 0.010221
+
+Elapsed time V8 for n(100), m(500) and threads(200): 0.010151
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.004454
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.004311
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.004696
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.004395
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.004331
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.004337
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.004365
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.004417
+
+Elapsed time V8 for n(100), m(50000) and threads(200): 0.225068
+
+Elapsed time V8 for n(100), m(50) and threads(200): 0.014286
+
+Elapsed time V8 for n(100), m(5000) and threads(200): 0.876509
+
+Elapsed time V8 for n(100), m(50) and threads(200): 0.006007
+
+Elapsed time V8 for n(100), m(1000) and threads(10): 0.004996
+
+Elapsed time V8 for n(100), m(1000) and threads(10): 0.004934
+
+Elapsed time V8 for n(100), m(1000) and threads(10): 0.004929
+
+Elapsed time V8 for n(100), m(1000) and threads(10): 0.004950
+
+Elapsed time V8 for n(100), m(1000) and threads(10): 0.004898
+
+Elapsed time V8 for n(100), m(1000) and threads(10): 0.004865
+
+Elapsed time V8 for n(100), m(10000) and threads(100): 0.259213
+
+Elapsed time V8 for n(100), m(10000) and threads(100): 0.130257
+
+Elapsed time V8 for n(100), m(100) and threads(100): 0.006370
+
+Elapsed time V8 for n(100), m(1000) and threads(100): 0.014826
+
+Elapsed time V8 for n(100), m(1000) and threads(100): 0.036457
+
+Elapsed time V8 for n(100), m(1000) and threads(100): 0.016181
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.000175
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.020705
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.020311
+
+Elapsed time V8 for n(100), m(2500) and threads(40): 0.020756
+
+Elapsed time V8 for n(96), m(25000) and threads(40): 0.149929
+
+Elapsed time V8 for n(96), m(500) and threads(20): 0.003311
+
+Elapsed time V8 for n(96), m(500) and threads(20): 0.002911
+
+Elapsed time V8 for n(96), m(5000) and threads(20): 0.017534
+
+Elapsed time V8 for n(96), m(500) and threads(20): 0.000000
+
+Elapsed time V8 for n(100), m(500) and threads(20): 0.000000
+
+Elapsed time V8 for n(100), m(500) and threads(20): 0.000000
+
+Elapsed time V8 for n(100), m(500) and threads(20): 0.000000
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(100), m(5000) and threads(20): 0.000001
+
+Elapsed time V8 for n(100), m(2500) and threads(40): 0.000000
+
+Elapsed time V8 for n(100), m(2500) and threads(40): 0.000001
+
+Elapsed time V8 for n(96), m(2500) and threads(40): 0.000001
+
+Elapsed time V8 for n(96), m(2500) and threads(40): 0.000001
+
+Elapsed time V8 for n(96), m(2500) and threads(40): 0.000000
+
+Elapsed time V8 for n(96), m(2000) and threads(50): 0.000003
+
+Elapsed time V8 for n(96), m(2000) and threads(50): 0.000003
+
+Elapsed time V8 for n(96), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(5000) and threads(20): 0.000001
+
+Elapsed time V8 for n(96), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(500) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(50000) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(50000) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(25000) and threads(40): 0.000001
+
+Elapsed time V8 for n(96), m(25000) and threads(40): 0.000001
+
+Elapsed time V8 for n(256), m(2500) and threads(40): 0.000001
+
+Elapsed time V8 for n(256), m(2500) and threads(40): 0.000001
+
+Elapsed time V8 for n(512), m(2500) and threads(40): 0.000001
+
+Elapsed time V8 for n(1024), m(2500) and threads(40): 0.000001
+
+Elapsed time V8 for n(2048), m(25000) and threads(40): 0.000005
+
+Elapsed time V8 for n(2048), m(50000) and threads(20): 0.000010
+
+Elapsed time V8 for n(4096), m(5000) and threads(20): 0.000001
+
+Elapsed time V8 for n(2048), m(50000) and threads(20): 0.000006
+
+Elapsed time V8 for n(2048), m(5000) and threads(20): 0.000015
+
+Elapsed time V8 for n(2048), m(5000) and threads(20): 0.000001
+
+Elapsed time V8 for n(2048), m(5000) and threads(20): 0.000001
+
+Elapsed time V8 for n(2048), m(5000) and threads(20): 0.000001
+
+Elapsed time V8 for n(2048), m(5000) and threads(20): 0.000002
+
+Elapsed time V8 for n(2048), m(50000) and threads(20): 0.000017
+
+Elapsed time V8 for n(2048), m(50000) and threads(20): 0.000005
+
+Elapsed time V8 for n(2048), m(5000) and threads(20): 0.000001
+
+Elapsed time V8 for n(2048), m(5000) and threads(20): 0.000001
+
+Elapsed time V8 for n(2048), m(5000) and threads(20): 0.000002
+
+Elapsed time V8 for n(2048), m(5000) and threads(20): 0.000001
+
+Elapsed time V8 for n(2048), m(50000) and threads(20): 0.000006
+
+Elapsed time V8 for n(2048), m(25000) and threads(40): 0.000006
+
+Elapsed time V8 for n(8192), m(25000) and threads(20): 0.000043
+
+Elapsed time V8 for n(96), m(50000) and threads(20): 0.000004
+
+Elapsed time V8 for n(96), m(50000) and threads(20): 0.000001
+
+Elapsed time V8 for n(96), m(50000) and threads(20): 0.000003
+
+Elapsed time V8 for n(96), m(5000) and threads(20): 0.000000
+
+Elapsed time V8 for n(96), m(500) and threads(20): 0.000001
+
+Elapsed time V8 for n(96), m(500000) and threads(20): 0.000000
+
+Elapsed time V8 for n(4096), m(5000) and threads(20): 0.000010
+
+Elapsed time V8 for n(4096), m(5000) and threads(20): 0.000022
+
+Elapsed time V8 for n(4096), m(5000) and threads(20): 0.000016
+
+Elapsed time V8 for n(4096), m(5000) and threads(20): 0.000019
+
+Elapsed time V8 for n(4096), m(5000) and threads(20): 0.000018
+
+Elapsed time V8 for n(4096), m(50000) and threads(20): 0.000093
+
+Elapsed time V8 for n(4096), m(50000) and threads(20): 0.000037
+
+Elapsed time V8 for n(4096), m(5000) and threads(20): 0.000000

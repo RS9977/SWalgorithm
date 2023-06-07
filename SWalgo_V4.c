@@ -3,6 +3,8 @@
  * Purpose:     Local alignment of nucleotide or protein sequences
  * Authors:     Daniel Holanda, Hanoch Griner, Taynara Pinheiro
  ***********************************************************************/
+//This is the working AVX256 for 4B integer
+
 //gcc -mavx2 SWalgo_V4.c -lgomp -o SWalgo_V4
 #include <stdio.h>
 #include <stdlib.h>
@@ -13,6 +15,7 @@
 #include <smmintrin.h>
 #include <immintrin.h>
 #include <stdbool.h>
+#include <sys/stat.h>
 
 //#include <zmmintrin.h>
 
@@ -34,6 +37,8 @@
 
 #define Vsize 8
 
+
+#define NumOfTest 1e2//1e4
 //#define DEBUG
 //#define pragmas
 /* End of constants */
@@ -145,6 +150,7 @@ int main(int argc, char* argv[]) {
     //Calculates the similarity matrix
     long long int i, j;
 
+    
     double initialTime = omp_get_wtime();
     #ifdef pragmas
     #pragma GCC ivdep
@@ -160,6 +166,9 @@ int main(int argc, char* argv[]) {
         printf("%c ",b[i]);
     printf("\n");
     #endif
+    
+    int it;
+    for(it=0; it<NumOfTest; it++){
 
     long long int ind   = 3;
     long long int indd  = 0;
@@ -251,9 +260,17 @@ int main(int argc, char* argv[]) {
 
     backtrack(P, maxPos, maxPos_max_len);
 
+    }
+
+
     //Gets final time
     double finalTime = omp_get_wtime();
-    printf("\nElapsed time: %f\n\n", finalTime - initialTime);
+    printf("\nElapsed time: %f\n\n", (finalTime - initialTime)/NumOfTest);
+
+    FILE *fp;
+    fp = fopen("Results.txt", "a");
+    fprintf(fp, "Elapsed time V4: %lf\n", (finalTime - initialTime)/NumOfTest);
+    fclose(fp);
 
     #ifdef DEBUG
     printf("\nSimilarity Matrix:\n");

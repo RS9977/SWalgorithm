@@ -27,7 +27,7 @@
 #define LEFT 2
 #define DIAGONAL 3
 #define block_size 100
-
+__device__ int syncValue = 0;
 
 //#define DEBUG
 //#define pragmas
@@ -80,40 +80,83 @@ char *a, *b;
 /*--------------------------------------------------------------------
  * Function:    main
  */
-typedef struct  {
-    long long int i;
-    long long int max_len;
-    long long int ind;
-    long long int ind_u;
-    long long int ind_d;
-    long long int ind_l;
-    long long int m;
-    long long int j_start;
-} similarity_parameters;
+//typedef struct  {
+//    long long int i;
+//    long long int max_len;
+//    long long int ind;
+//    long long int ind_u;
+//    long long int ind_d;
+//    long long int ind_l;
+//    long long int m;
+//    long long int j_start;
+//} similarity_parameters;
 
 
-__global__ void smilarity(similarity_parameters *sp_gpu, char* a_gpu, char* b_gpu,
-                          int* H, int* P, long long int *maxPos, long long int *maxPos_max_len) {
-    long long int j_start = sp_gpu -> j_start;
-    long long int j       = blockIdx.x * blockDim.x +threadIdx.x + j_start;
-    long long int ind     = sp_gpu -> ind + j;
-    long long int ind_l   = sp_gpu -> ind_l+j;
-    long long int ind_d   = sp_gpu -> ind_d+j;
-    long long int ind_u   = sp_gpu -> ind_u+j;
-    long long int i       = sp_gpu -> i;
-    long long int m       = sp_gpu -> m;
-    long long int max_len = sp_gpu -> max_len;
+
+__global__ void smilarity(long long int* barrier, long long int* i, long long int* m, long long int* n,
+                          char* a_gpu, char* b_gpu,int* H, int* P,
+                          long long int *maxPos, long long int *maxPos_max_len) {
+
+    long long int ind, max_len, ind_d, ind_u, ind_l, jj, j_start, j_end;
+    long long int ii = *i, mm = *m, nn = *n;
+    long long int j = blockIdx.x * blockDim.x +threadIdx.x;
+    for (ii = 2; ii < mm + nn - 1; ii++) {
+    if(ii<nn){
+        ind = (ii)*(ii+1)/2;
+    }
+    else if(ii >= mm){
+        ind = nn * mm - (nn-(ii-mm))*(nn-(ii-mm)-1)/2;
+    }
+    else{
+        ind  = (ii)*(ii+1)/2 + (ii-nn+1)* (nn);
+    }
+
+    if (ii < nn){
+        max_len = ii + 1;
+        j_end   = max_len-1;
+        j_start = 1;
+        j++;
+        ind_u   = ind - max_len;
+        ind_l   = ind - max_len + 1;
+        ind_d   = ind - (max_len<<1) + 2;
+    }
+    else if (ii >= mm){
+        max_len = mm + nn - 1 - ii;
+        j_end   = max_len-1;
+        j_start = 0;
+        ind_u   = ind - max_len - 1;
+        ind_l   = ind - max_len;
+        ind_d   = ind - (max_len<<1) - 2;
+    }
+    else{
+        max_len   = nn;
+        j_end     = max_len-1;
+        j_start   = 1;
+        j++;
+        ind_u     = ind - max_len - 1;
+        ind_l     = ind - max_len;
+        if(ii>nn)
+            ind_d = ind - (max_len<<1) - 1;
+        else
+            ind_d = ind - (max_len<<1);
+    }
+
+        
+    if (j<j_end && j>=j_start){
+
+    ind   = ind + j;
+    ind_d = ind_d + j;
+    ind_u = ind_u + j;
+    ind_l = ind_l + j;
 
     //Columns long long int ind
-    long long int jj;
-    long long int ii;
-    if (i<m){
-        ii = i-j;
+    if (ii<mm){
+        ii = ii-j;
         jj = j;
     }
     else{
-        ii = m-1-j;
-        jj = i-m+j+1;
+        ii = mm - 1- j;
+        jj = ii - mm + j+1;
     }
 
     int up, left, diag;
@@ -173,14 +216,23 @@ __global__ void smilarity(similarity_parameters *sp_gpu, char* a_gpu, char* b_gp
         *maxPos = ind;
         *maxPos_max_len = max_len;
     }
+
+    
+    
+
+        
+        __threadfence();
+        atomicAdd(&syncValue, 1);
+        while(syncValue < j_end-j_start) {}
+
+    if(threadIdx.x == 0 && blockIdx.x == 0)
+        syncValue = 0;
+    }
+    }
 }
 
 
 int main(int argc, char* argv[]) {
-
-    similarity_parameters *sp_gpu;
-    similarity_parameters *sp_cpu;
-
 
     if(argc>1){
         m = strtoll(argv[1], NULL, 10);
@@ -215,9 +267,8 @@ int main(int argc, char* argv[]) {
     long long int maxPos_max_len = 0;
     long long int *maxPos_gpu;
     long long int *maxPos_max_len_gpu;
+    long long int *barrier;
 
-    //allocate host
-    sp_cpu= (similarity_parameters *)(malloc(sizeof(similarity_parameters)));
     //Allocates a and b
     int allocSize_a = m * sizeof(char);
     int allocSize_b = n * sizeof(char);
@@ -230,31 +281,10 @@ int main(int argc, char* argv[]) {
     //Because now we have zeros
     m++;
     n++;
-    sp_cpu->m = m;
+
     int allocSize_matrix = m * n * sizeof(int);
     H = (int*)calloc(m * n, sizeof(int));
     P = (int*)calloc(m * n, sizeof(int));
-
-//    char* a_update = (char*)malloc(allocSize_a);
-//    char* b_update = (char*)malloc(allocSize_b);
-//    int*  H_update = (int*)calloc(m * n, sizeof(int));
-//    int*  P_update = (int*)calloc(m * n, sizeof(int));
-
-//    memcpy(a_update, sp_cpu->a, allocSize_a);
-//    memcpy(b_update, sp_cpu->b, allocSize_b);
-//    memcpy(H_update, sp_cpu->H, allocSize_matrix);
-//    memcpy(P_update, sp_cpu->P, allocSize_matrix);
-
-//    free(sp_cpu->a);
-//    free(sp_cpu->b);
-//    free(sp_cpu->H);
-//    free(sp_cpu->P);
-//
-//    sp_cpu->a = a_update;
-//    sp_cpu->b = b_update;
-//    sp_cpu->H = H_update;
-//    sp_cpu->P = P_update;
-
 
     //Gen rand arrays a and b
     generate();
@@ -282,7 +312,7 @@ int main(int argc, char* argv[]) {
 #pragma GCC ivdep
 #endif
 
-long long int i;
+    long long int i;
 #ifdef DEBUG
     printf("\n a string:\n");
     for(i=0; i<m-1; i++)
@@ -303,36 +333,13 @@ long long int i;
     cudaEventRecord(start, 0);
     //copy memory from the host to gpu
 
-
-//
-//    CUDA_SAFE_CALL(cudaMalloc((void **)&i_gpu, size));
-//    CUDA_SAFE_CALL(cudaMalloc((void **)&j_gpu, size));
-//    CUDA_SAFE_CALL(cudaMemcpy(i_gpu, &i, size, cudaMemcpyHostToDevice));
-//    CUDA_SAFE_CALL(cudaMemcpy(j_gpu, &j, size, cudaMemcpyHostToDevice));
-
-//    CUDA_SAFE_CALL(cudaMalloc((void **)&ind_gpu, size));
-//    CUDA_SAFE_CALL(cudaMalloc((void **)&ind_d_gpu, size));
-//    CUDA_SAFE_CALL(cudaMalloc((void **)&ind_u_gpu, size));
-//    CUDA_SAFE_CALL(cudaMalloc((void **)&ind_l_gpu, size));
-//    CUDA_SAFE_CALL(cudaMemcpy(ind_gpu, &ind, size, cudaMemcpyHostToDevice));
-//    CUDA_SAFE_CALL(cudaMemcpy(ind_d_gpu, &ind_d, size, cudaMemcpyHostToDevice));
-//    CUDA_SAFE_CALL(cudaMemcpy(ind_u_gpu, &ind_u, size, cudaMemcpyHostToDevice));
-//    CUDA_SAFE_CALL(cudaMemcpy(ind_l_gpu, &ind_l, size, cudaMemcpyHostToDevice));
-//
-//    CUDA_SAFE_CALL(cudaMalloc((void **)&max_len_gpu, size));
-//    CUDA_SAFE_CALL(cudaMemcpy(max_len_gpu, &max_len, size, cudaMemcpyHostToDevice));
-//
-//    CUDA_SAFE_CALL(cudaMalloc((void **)&m_gpu, size));
-//    CUDA_SAFE_CALL(cudaMemcpy(m_gpu, &m, size, cudaMemcpyHostToDevice));
-//
-//    CUDA_SAFE_CALL(cudaMalloc((void **)&offset_gpu, size));
-//    CUDA_SAFE_CALL(cudaMemcpy(offset_gpu, &offset, size, cudaMemcpyHostToDevice));
     CUDA_SAFE_CALL(cudaMalloc((void **)&H_gpu, allocSize_matrix));
     CUDA_SAFE_CALL(cudaMalloc((void **)&P_gpu, allocSize_matrix));
     CUDA_SAFE_CALL(cudaMalloc((void **)&a_gpu, allocSize_a));
     CUDA_SAFE_CALL(cudaMalloc((void **)&b_gpu, allocSize_b));
     CUDA_SAFE_CALL(cudaMalloc((void **)&maxPos_gpu, size));
     CUDA_SAFE_CALL(cudaMalloc((void **)&maxPos_max_len_gpu, size));
+    CUDA_SAFE_CALL(cudaMalloc((void **)&barrier, size));
 
     CUDA_SAFE_CALL(cudaMemcpy(maxPos_max_len_gpu, &maxPos_max_len, size, cudaMemcpyHostToDevice));
     CUDA_SAFE_CALL(cudaMemcpy(maxPos_gpu, &maxPos, size, cudaMemcpyHostToDevice));
@@ -348,61 +355,47 @@ long long int i;
         printf("%c ",b[i]);
     printf("\n");
 #endif
+    cudaStream_t stream1;
+    cudaStreamCreate(&stream1);
+    long long int j_start, j_end, ind = 3, max_len, *i_gpu, *m_gpu, *n_gpu;
+    i=0;
+    CUDA_SAFE_CALL(cudaMalloc((void **)&i_gpu, size));
+    CUDA_SAFE_CALL(cudaMalloc((void **)&m_gpu, size));
+    CUDA_SAFE_CALL(cudaMalloc((void **)&n_gpu, size));
+    CUDA_SAFE_CALL(cudaMalloc((void **)&barrier, size));
+    CUDA_SAFE_CALL(cudaMemcpy(m_gpu, &m, size, cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaMemcpy(n_gpu, &n, size, cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaMemcpy(i_gpu, &i, size, cudaMemcpyHostToDevice));
+    CUDA_SAFE_CALL(cudaMemcpy(barrier, &i, size, cudaMemcpyHostToDevice));
 
-    long long int j_start, j_end;
-    sp_cpu -> ind = 3;
-    CUDA_SAFE_CALL(cudaMalloc((void **)&sp_gpu, sizeof(similarity_parameters)));
-    for (sp_cpu->i = 2; sp_cpu->i < sp_cpu->m + n - 1; sp_cpu->i++) { //Lines
-        if (sp_cpu->i < n){
-            sp_cpu->max_len = sp_cpu->i + 1;
+    for (i = 2; i < m + n - 1; i++) { //Lines
+        if (i < n){
+            max_len = i + 1;
             j_start = 1;
-            j_end   = sp_cpu->max_len-1;
-            sp_cpu->ind_u   = sp_cpu->ind - sp_cpu->max_len;
-            sp_cpu->ind_l   = sp_cpu->ind - sp_cpu->max_len + 1;
-            sp_cpu->ind_d   = sp_cpu->ind - (sp_cpu->max_len<<1) + 2;
+            j_end   = max_len-1;
         }
-        else if (sp_cpu->i >= sp_cpu->m){
-            sp_cpu->max_len = sp_cpu->m + n - 1 - sp_cpu->i;
+        else if (i >= m){
+            max_len = m + n - 1 - i;
             j_start = 0;
-            j_end   = sp_cpu->max_len;
-            sp_cpu->ind_u   = sp_cpu->ind - sp_cpu->max_len - 1;
-            sp_cpu->ind_l   = sp_cpu->ind - sp_cpu->max_len;
-            sp_cpu->ind_d   = sp_cpu->ind - (sp_cpu->max_len<<1) - 2;
+            j_end   = max_len;
         }
         else{
-            sp_cpu->max_len   = n;
+            max_len = n;
             j_start = 1;
-            j_end   = sp_cpu->max_len;
-            sp_cpu->ind_u     = sp_cpu->ind - sp_cpu->max_len - 1;
-            sp_cpu->ind_l     = sp_cpu->ind - sp_cpu->max_len;
-            if(sp_cpu->i>n)
-                sp_cpu->ind_d = sp_cpu->ind - (sp_cpu->max_len<<1) - 1;
-            else
-                sp_cpu->ind_d = sp_cpu->ind - (sp_cpu->max_len<<1);
+            j_end   = max_len;
         }
-
         long long int row_len = j_end - j_start;
         long long int offset = block_size * ((long long int) (row_len/block_size));
 
-        sp_cpu -> j_start = j_start;
-        if(row_len>block_size) {
-            CUDA_SAFE_CALL(cudaMemcpy(sp_gpu, sp_cpu, sizeof(similarity_parameters), cudaMemcpyHostToDevice));
             dim3 block_Dim(block_size, 1, 1);
-            dim3 grid_Dim((int) (row_len / block_size), 1, 1);
-            smilarity<<<grid_Dim, block_Dim>>>(sp_gpu, a_gpu, b_gpu, H_gpu, P_gpu, maxPos_gpu, maxPos_max_len_gpu);
-        }
-
-        dim3 block_Dim_corner(row_len % block_size, 1, 1);
-        dim3 grid_Dim_corner(1, 1, 1);
-        sp_cpu->ind   = sp_cpu->ind   + offset;
-        sp_cpu->ind_d = sp_cpu->ind_d + offset;
-        sp_cpu->ind_l = sp_cpu->ind_l + offset;
-        sp_cpu->ind_u = sp_cpu->ind_u + offset;
-        CUDA_SAFE_CALL(cudaMemcpy(sp_gpu, sp_cpu, sizeof(similarity_parameters), cudaMemcpyHostToDevice));
-        smilarity<<<grid_Dim_corner, block_Dim_corner>>>(sp_gpu, a_gpu, b_gpu, H_gpu, P_gpu, maxPos_gpu, maxPos_max_len_gpu);
-
-        sp_cpu->ind += sp_cpu->max_len;
+            dim3 grid_Dim((int) (row_len / block_size)+1, 1, 1);
+            smilarity<<<grid_Dim, block_Dim, 0, stream1>>>(barrier,
+                                                            i_gpu,m_gpu, n_gpu,
+                                                            a_gpu, b_gpu, H_gpu, P_gpu,
+                                                           maxPos_gpu, maxPos_max_len_gpu);
     }
+
+    cudaStreamSynchronize(stream1);
 
     // Check for errors during launch
     CUDA_SAFE_CALL(cudaPeekAtLastError());
@@ -413,8 +406,6 @@ long long int i;
     CUDA_SAFE_CALL(cudaMemcpy(&maxPos_max_len, maxPos_max_len_gpu, size, cudaMemcpyDeviceToHost));
     CUDA_SAFE_CALL(cudaMemcpy(a, a_gpu, allocSize_a, cudaMemcpyDeviceToHost));
     CUDA_SAFE_CALL(cudaMemcpy(b, b_gpu, allocSize_b, cudaMemcpyDeviceToHost));
-    CUDA_SAFE_CALL(cudaMemcpy(sp_cpu, sp_gpu, sizeof(similarity_parameters), cudaMemcpyDeviceToHost));
-
 
     // Stop and destroy the timer
     cudaEventRecord(stop,0);
@@ -446,13 +437,15 @@ long long int i;
     CUDA_SAFE_CALL(cudaFree(b_gpu));
     CUDA_SAFE_CALL(cudaFree(maxPos_max_len_gpu));
     CUDA_SAFE_CALL(cudaFree(maxPos_gpu));
-    CUDA_SAFE_CALL(cudaFree(sp_gpu));
+    CUDA_SAFE_CALL(cudaFree(m_gpu));
+    CUDA_SAFE_CALL(cudaFree(n_gpu));
 
+
+    cudaStreamDestroy(stream1);
     free(a);
     free(b);
     free(H);
     free(P);
-    free(sp_cpu);
 
     return 0;
 }  /* End of main */
@@ -524,7 +517,7 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
  * Function:    matchMissmatchScore
  * Purpose:     Similarity function on the alphabet for match/missmatch
  */
- int matchMissmatchScore(long long int i, long long int j) {
+int matchMissmatchScore(long long int i, long long int j) {
     if (a[i-1] == b[j-1])
         return matchScore;
     else
