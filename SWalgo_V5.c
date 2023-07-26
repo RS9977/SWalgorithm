@@ -35,19 +35,51 @@
 #define LEFT 2
 #define DIAGONAL 3
 
+
+#define NumOfTest 1
 #define Vsize 8
 
 //#define DEBUG
 //#define pragmas
 /* End of constants */
-
+double interval(struct timespec start, struct timespec end)
+{
+  struct timespec temp;
+  temp.tv_sec = end.tv_sec - start.tv_sec;
+  temp.tv_nsec = end.tv_nsec - start.tv_nsec;
+  if (temp.tv_nsec < 0) {
+    temp.tv_sec = temp.tv_sec - 1;
+    temp.tv_nsec = temp.tv_nsec + 1000000000;
+  }
+  return (((double)temp.tv_sec) + ((double)temp.tv_nsec)*1.0e-9);
+}
+double wakeup_delay()
+{
+  double meas = 0; int j, i;
+  struct timespec time_start, time_stop;
+  double quasi_random = 0;
+  clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time_start);
+  j = 10000000;
+  while (meas < 1.0) {
+    for (i=1; i<j; i++) {
+      /* This iterative calculation uses a chaotic map function, specifically
+         the complex quadratic map (as in Julia and Mandelbrot sets), which is
+         unpredictable enough to prevent compiler optimisation. */
+      quasi_random = quasi_random*quasi_random - 1.923432;
+    }
+    clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time_stop);
+    meas = interval(time_start, time_stop);
+    j *= 2; /* Twice as much delay next time, until we've taken 1 second */
+  }
+  return quasi_random;
+}
 
 /*--------------------------------------------------------------------
  * Functions Prototypes
  */
 void similarityScore(long long int ind, long long int ind_u, long long int ind_d, long long int ind_l, long long int ii, long long int jj, int* H, int* P, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
 void* similarityScoreIntrinsic(void* ins);
-long long int similarity_pth(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* PP, int* H, long long int i, long long int j_start, long long j_end, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
+long long int similarity_pth(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* PP, int* H, long long int i, long long int j_start, long long j_end, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len, int NumOfThreads);
 int  matchMissmatchScore(long long int i, long long int j);
 void backtrack(int* P, long long int maxPos, long long int maxPos_max_len);
 void printMatrix(int* matrix);
@@ -71,7 +103,7 @@ int gapScore = -4;
 //Strings over the Alphabet Sigma
 char *a, *b;
 
-#define NUM_THREADS 100
+#define NumOfThs 20
 
 pthread_mutex_t similarity_lock;
 struct similarity_data
@@ -99,10 +131,12 @@ struct similarity_data
 int main(int argc, char* argv[]) {
     
     
+    int NumOfThreads = NumOfThs;
     if(argc>1){
-        m = strtoll(argv[1], NULL, 10);
-        n = strtoll(argv[2], NULL, 10); 
-        long long int temp;
+        m = atoi(argv[1]);
+        n = atoi(argv[2]); 
+        NumOfThreads = atoi(argv[3]); 
+        int temp;
         if( m<n){
             temp = m;
             m = n;
@@ -110,8 +144,9 @@ int main(int argc, char* argv[]) {
         }
     }
     else{
-        m = 20;
-        n = 16;
+        m = 1000;
+        n = 100;
+        NumOfThreads =1;
     }
 
 
@@ -160,7 +195,7 @@ int main(int argc, char* argv[]) {
     // b[5] =   'A';
     // b[6] =   'C';
 
-
+    double ww = wakeup_delay();
 
     //Start position for backtrack
     long long int maxPos         = 0;
@@ -194,6 +229,8 @@ int main(int argc, char* argv[]) {
     long long int indd  = 0;
     long long int indul = 1;
     long long int ind_u, ind_d, ind_l; 
+    int it;
+    for(it=0; it<NumOfTest; it++){
     for (i = 2; i < m+n-1; i++) { //Lines
         long long int max_len;
         long long int ii,jj;
@@ -242,7 +279,7 @@ int main(int argc, char* argv[]) {
         }*/
         //int Vsize = 256/sizeof(typeof(H));
       //  #pragma gcc ivdep 
-    j = similarity_pth( HH, Hu, Hd, Hl, PP, H, i, j_start, j_end, ind, max_len, &maxPos, &maxPos_max_len);
+    j = similarity_pth( HH, Hu, Hd, Hl, PP, H, i, j_start, j_end, ind, max_len, &maxPos, &maxPos_max_len, NumOfThreads);
     
         for(;j<j_end; j++){
             if (i<m){
@@ -257,14 +294,17 @@ int main(int argc, char* argv[]) {
         }
         ind += max_len;
     }
-    
+    }
+     double finalTime = omp_get_wtime();
     pthread_mutex_destroy(&similarity_lock);
+
+    printf("\nElapsed time: %f\n\n", finalTime - initialTime);
 
     backtrack(P, maxPos, maxPos_max_len);
 
     //Gets final time
-    double finalTime = omp_get_wtime();
-    printf("\nElapsed time: %f\n\n", finalTime - initialTime);
+   
+    
 
     #ifdef DEBUG
     printf("\nSimilarity Matrix:\n");
@@ -305,7 +345,7 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
 
     //Calculates the maximum
     int max = NONE;
-    int pred = NONE;
+//    int pred = NONE;
     /* === Matrix ===
      *      a[0] ... a[n] 
      * b[0]
@@ -323,28 +363,28 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
     
     if (diag > max) { //same letter ↖
         max = diag;
-        pred = DIAGONAL;
+        //pred = DIAGONAL;
     }
 
     if (up > max) { //remove letter ↑ 
         max = up;
-        pred = UP;
+      //  pred = UP;
     }
     
     if (left > max) { //insert letter ←
         max = left;
-        pred = LEFT;
+    //    pred = LEFT;
     }
     //Inserts the value in the similarity and predecessor matrixes
     H[ind] = max;
-    P[ind] = pred;
+  /*  P[ind] = pred;
 
     //Updates maximum score to be used as seed on backtrack 
     if (max > H[*maxPos]) {
         *maxPos = ind;
         *maxPos_max_len = max_len;
     }
-
+*/
 }  /* End of similarityScore */
 
 
@@ -406,7 +446,7 @@ void* similarityScoreIntrinsic(void* ins) {
 
     //Calculates the maximum
    __m256i max  =_mm256_set1_epi32(NONE);
-   __m256i pred =_mm256_set1_epi32(NONE);
+   //__m256i pred =_mm256_set1_epi32(NONE);
 
     /* === Matrix ===
      *      a[0] ... a[n] 
@@ -425,21 +465,21 @@ void* similarityScoreIntrinsic(void* ins) {
    //same letter ↖
     mask    = _mm256_cmpgt_epi32(diag, max);
     max     = _mm256_blendv_epi8(max, diag, mask);
-    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(DIAGONAL), mask);
+   // pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(DIAGONAL), mask);
 
     //remove letter ↑ 
     mask    = _mm256_cmpgt_epi32(up, max);
     max     = _mm256_blendv_epi8(max, up, mask);
-    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(UP), mask);
+  //  pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(UP), mask);
 
     //insert letter ←
     mask    = _mm256_cmpgt_epi32(left, max);
     max     = _mm256_blendv_epi8(max, left, mask);
-    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(LEFT), mask);
+  //  pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(LEFT), mask);
 
     //Inserts the value in the similarity and predecessor matrixes
     _mm256_storeu_si256(HH, max);
-    _mm256_storeu_si256(PP, pred);
+   /* _mm256_storeu_si256(PP, pred);
     
     //Updates maximum score to be used as seed on backtrack 
     __m256i vmax = max;
@@ -458,7 +498,7 @@ void* similarityScoreIntrinsic(void* ins) {
         *maxPos         = ind+max_index;
         *maxPos_max_len = max_len;
         pthread_mutex_unlock(&similarity_lock);
-    }
+    }*/
     
 }  /* End of similarityScore */
 
@@ -658,9 +698,9 @@ void printPredecessorMatrix(int* matrix) {
 } /* End of generate */
 
 
-long long int similarity_pth(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* PP, int* H, long long int i, long long int j_start, long long j_end, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len){
-    pthread_t threads[NUM_THREADS];
-    struct similarity_data thread_data_array[NUM_THREADS];
+long long int similarity_pth(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* PP, int* H, long long int i, long long int j_start, long long j_end, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len, int NumOfThreads){
+    pthread_t threads[NumOfThreads];
+    struct similarity_data thread_data_array[NumOfThreads];
 
     int t, tt;
     int rc;
@@ -668,7 +708,7 @@ long long int similarity_pth(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m
     long long int j = j_start;
 
     while (j <j_end-Vsize+1) { //Columns          
-        for(t=0; (t<NUM_THREADS) && (j <j_end-Vsize+1); t++){
+        for(t=0; (t<NumOfThreads) && (j <j_end-Vsize+1); t++){
             thread_data_array[t].thread_id      = t;
             thread_data_array[t].HH             = HH;
             thread_data_array[t].Hd             = Hd;

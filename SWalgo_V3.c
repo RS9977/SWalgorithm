@@ -37,7 +37,7 @@
 #define DIAGONAL 3
 
 #define Vsize 16
-#define NumOfTest 10
+#define NumOfTest 1e3
 
 //#define DEBUG
 //#define pragmas
@@ -143,7 +143,7 @@ int main(int argc, char* argv[]) {
     //Start position for backtrack
     long long int maxPos         = 0;
     long long int maxPos_max_len = 0;
-
+    double t;
     //Calculates the similarity matrix
     long long int i, j;
 
@@ -244,18 +244,14 @@ int main(int argc, char* argv[]) {
         }
         ind += max_len;
     }
-    
+        
+        backtrack(P, maxPos, maxPos_max_len);
+        
     }
     //Gets final time
     double finalTime = omp_get_wtime();
     printf("\nElapsed time V3 for n(%lld) and m(%lld): %f\n", n-1, m-1, (finalTime - initialTime)/NumOfTest);
-
-    FILE *fp;
-    fp = fopen("Results.txt", "a");
-    fprintf(fp, "\nElapsed time V3 for n(%lld) and m(%lld): %f\n", n-1, m-1, (finalTime - initialTime)/NumOfTest);
-    fclose(fp);
-
-    backtrack(P, maxPos, maxPos_max_len);
+    
 
     
 
@@ -369,7 +365,7 @@ void similarityScoreIntrinsic(__m512i* HH, __m512i* Hu, __m512i* Hd, __m512i* Hl
 
     //Calculates the maximum
     __m512i max  = _mm512_set1_epi32(NONE);
-  //  __m512i pred = _mm512_set1_epi32(NONE);
+    __m512i pred = _mm512_set1_epi32(NONE);
 
     /* === Matrix ===
      *      a[0] ... a[n] 
@@ -388,24 +384,24 @@ void similarityScoreIntrinsic(__m512i* HH, __m512i* Hu, __m512i* Hd, __m512i* Hl
    //same letter ↖
     mask = _mm512_cmpgt_epi32_mask(max, diag);
     max  = _mm512_mask_mov_epi32(diag, mask, max);
- //   pred = _mm512_mask_mov_epi32(_mm512_set1_epi32(DIAGONAL), mask, pred);
+    pred = _mm512_mask_mov_epi32(_mm512_set1_epi32(DIAGONAL), mask, pred);
 
     //remove letter ↑ 
     mask = _mm512_cmpgt_epi32_mask(max, up);
     max  = _mm512_mask_mov_epi32(up, mask, max);
- //   pred = _mm512_mask_mov_epi32(_mm512_set1_epi32(UP), mask, pred);
+    pred = _mm512_mask_mov_epi32(_mm512_set1_epi32(UP), mask, pred);
    
 
     //insert letter ←
     mask = _mm512_cmpgt_epi32_mask(max, left);
     max  = _mm512_mask_mov_epi32(left, mask, max);
- //   pred = _mm512_mask_mov_epi32(_mm512_set1_epi32(LEFT), mask, pred);
+    pred = _mm512_mask_mov_epi32(_mm512_set1_epi32(LEFT), mask, pred);
     
     //Inserts the value in the similarity and predecessor matrixes
 
     _mm512_storeu_si512(HH, max);
-//    _mm512_storeu_si512(PP, pred);
-/*
+    _mm512_storeu_si512(PP, pred);
+
     //Updates maximum score to be used as seed on backtrack 
     int maxx       = _mm512_reduce_max_epi32(max);
     mask           = _mm512_cmpeq_epi32_mask(max, _mm512_set1_epi32(maxx));
@@ -415,7 +411,7 @@ void similarityScoreIntrinsic(__m512i* HH, __m512i* Hu, __m512i* Hd, __m512i* Hl
         *maxPos         = ind+maxx_ind;
         *maxPos_max_len = max_len;
     }
-*/
+
 }  /* End of similarityScore */
 
 

@@ -1,14 +1,13 @@
 #include <immintrin.h>
 #include <stdio.h>
+#include <xmmintrin.h>
+#include <smmintrin.h>
+#include <immintrin.h>
+
 
 int main() {
     // Input 16-bit integers
-    int i;
-    for(i=0; i<10; i++){
-        if(i%4==0)
-            i++;
-        printf("%d\n", i);
-    }
-
+    char a = 'a';
+    printf("%d", a-96);
     return 0;
 }

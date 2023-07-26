@@ -256,9 +256,6 @@ int main(int argc, char* argv[]) {
         }
         ind += max_len;
     }
-    
-    backtrack(P, maxPos, maxPos_max_len);
-
 
     }
 
@@ -308,7 +305,7 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
 
     //Calculates the maximum
     int max = NONE;
-    int pred = NONE;
+   // int pred = NONE;
     /* === Matrix ===
      *      a[0] ... a[n] 
      * b[0]
@@ -326,28 +323,28 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
     
     if (diag > max) { //same letter ↖
         max = diag;
-        pred = DIAGONAL;
+        //pred = DIAGONAL;
     }
 
     if (up > max) { //remove letter ↑ 
         max = up;
-        pred = UP;
+      //  pred = UP;
     }
     
     if (left > max) { //insert letter ←
         max = left;
-        pred = LEFT;
+    //    pred = LEFT;
     }
     //Inserts the value in the similarity and predecessor matrixes
     H[ind] = max;
-    P[ind] = pred;
+  /*  P[ind] = pred;
 
     //Updates maximum score to be used as seed on backtrack 
     if (max > H[*maxPos]) {
         *maxPos = ind;
         *maxPos_max_len = max_len;
     }
-
+*/
 }  /* End of similarityScore */
 
 
@@ -380,7 +377,7 @@ void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__
 
     //Calculates the maximum
    __m256i max  =_mm256_set1_epi32(NONE);
-   __m256i pred =_mm256_set1_epi32(NONE);
+ //  __m256i pred =_mm256_set1_epi32(NONE);
 
     /* === Matrix ===
      *      a[0] ... a[n] 
@@ -399,21 +396,21 @@ void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__
    //same letter ↖
     mask    = _mm256_cmpgt_epi32(diag, max);
     max     = _mm256_blendv_epi8(max, diag, mask);
-    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(DIAGONAL), mask);
+  //  pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(DIAGONAL), mask);
 
     //remove letter ↑ 
     mask    = _mm256_cmpgt_epi32(up, max);
     max     = _mm256_blendv_epi8(max, up, mask);
-    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(UP), mask);
+   // pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(UP), mask);
 
     //insert letter ←
     mask    = _mm256_cmpgt_epi32(left, max);
     max     = _mm256_blendv_epi8(max, left, mask);
-    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(LEFT), mask);
+   // pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(LEFT), mask);
 
     //Inserts the value in the similarity and predecessor matrixes
     _mm256_storeu_si256(HH, max);
-    _mm256_storeu_si256(PP, pred);
+    /*_mm256_storeu_si256(PP, pred);
     
     //Updates maximum score to be used as seed on backtrack 
     __m256i vmax = max;
@@ -431,7 +428,7 @@ void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__
         *maxPos         = ind+max_index;
         *maxPos_max_len = max_len;
     }
-
+*/
 }  /* End of similarityScore */
 
 

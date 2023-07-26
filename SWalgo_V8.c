@@ -5,7 +5,7 @@
  ***********************************************************************/
 //This is the working AVX256 for 4B integer
 
-//gcc -mavx2 SWalgo_V8.c -lgomp -o SWalgo_V8
+//gcc -mavx2 SWalgo_V8.c -lgomp -lpthread -o SWalgo_V8
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -39,8 +39,8 @@
 #define Vsize 8
 
 #define CPNS 5.0 
-#define NumOfTest 1e3//1e4
-#define NumOfThreads 20
+#define NumOfTest 1e2//1e4
+#define NumOfThs 20
 //#define DEBUG
 //#define pragmas
 /* End of constants */
@@ -58,7 +58,6 @@ void printMatrix(int* matrix);
 void printPredecessorMatrix(int* matrix);
 void generate(void);
 /* End of prototypes */
-
 double interval(struct timespec start, struct timespec end)
 {
   struct timespec temp;
@@ -72,13 +71,13 @@ double interval(struct timespec start, struct timespec end)
 }
 double wakeup_delay()
 {
-  double meas = 0; int j;
+  double meas = 0; int j, i;
   struct timespec time_start, time_stop;
   double quasi_random = 0;
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time_start);
-  j = 100;
+  j = 10000000;
   while (meas < 1.0) {
-    for (int i=1; i<j; i++) {
+    for (i=1; i<j; i++) {
       /* This iterative calculation uses a chaotic map function, specifically
          the complex quadratic map (as in Julia and Mandelbrot sets), which is
          unpredictable enough to prevent compiler optimisation. */
@@ -126,11 +125,12 @@ typedef struct
  */
 int main(int argc, char* argv[]) {
     
-    
+    int NumOfThreads = NumOfThs;
     if(argc>1){
-        mm = strtoll(argv[1], NULL, 10);
-        n = strtoll(argv[2], NULL, 10); 
-        long long int temp;
+        mm = atoi(argv[1]);
+        n = atoi(argv[2]); 
+        NumOfThreads = atoi(argv[3]); 
+        int temp;
         if( mm<n){
             temp = mm;
             mm = n;
@@ -138,8 +138,9 @@ int main(int argc, char* argv[]) {
         }
     }
     else{
-        mm = 10000;
+        mm = 1000;
         n = 100;
+        NumOfThreads =1;
     }
 
     struct timespec time_start, time_stop;
@@ -193,7 +194,7 @@ int main(int argc, char* argv[]) {
     long long int maxPos_max_len = 0;
 
     //Calculates the similarity matrix
-    long long int i, j;
+    int i, j;
 
     double ww = wakeup_delay();
     pthread_mutex_init(&lock, NULL);
@@ -213,7 +214,7 @@ int main(int argc, char* argv[]) {
         printf("%c ",b[i]);
     printf("\n");
     #endif
-    double t1, t2, overall=100000000000;
+     double t1, t2, overall=100000000000;
     int it;
     double finalTime;
     
@@ -248,9 +249,11 @@ int main(int argc, char* argv[]) {
     //Gets final time
     
     clock_gettime(CLOCK_REALTIME, &time_stop);
-    printf("\nww:%f Best Function time V8 for n(%lld), m(%lld) and threads(%d): %f\n", ww, n-1, m-1, overall, NumOfThreads);
-    printf("\nGCUPS: %f", 1e-9*(m-1)*(n-1)*NumOfThreads/overall);
-    printf("\nClock wall: %f\n", interval(time_start, time_stop)/NumOfTest);
+    printf("\nww:%f Best Function time V8 for n(%lld), m(%lld) and threads(%d): %f", ww, n-1, m-1, overall, NumOfThreads);
+    printf("\nGCUPS max: %f", 1e-9*(m-1)*(n-1)*NumOfThreads/overall);
+    double mean_time = interval(time_start, time_stop)/NumOfTest;
+    printf("\nClock wall: %f\n", mean_time);
+    printf("\nGCUPS mean: %f\n", 1e-9*(m-1)*(n-1)*NumOfThreads/mean_time);
     
     FILE *fp;
     fp = fopen("Results.txt", "a");
@@ -425,7 +428,7 @@ void* enitre_simiraity_pth_worker(void* in){
            __m256i IJ      = _mm256_add_epi32(Joffset, Ioffset);
            __m256i I_MJ1   = _mm256_sub_epi32(IJ,M_1);
            __m256i JJ      = _mm256_blendv_epi8(I_MJ1, Joffset, mask);
-                   II      = _mm256_add_epi32(II, _mm256_set1_epi32(start_ind));
+                II         = _mm256_add_epi32(II, _mm256_set1_epi32(start_ind));
            similarityScoreIntrinsic(HH, Hu, Hd, Hl, PP, II, JJ, H, ind+j, max_len, &maxPos, &maxPos_max_len);
            Hu++;
            Hl++;
@@ -436,11 +439,11 @@ void* enitre_simiraity_pth_worker(void* in){
        
         for(;j<j_end; j++){
             if (i<m){
-                ii = i-j;
+                ii = i-j+start_ind;
                 jj = j;
             }
             else{
-                ii = m-1-j;
+                ii = m-1-j+start_ind;
                 jj = i-m+j+1;
             }      
             similarityScore(ind+j, ind_u+j, ind_d+j, ind_l+j, ii, jj, H, P, max_len, &maxPos, &maxPos_max_len);
@@ -452,6 +455,7 @@ void* enitre_simiraity_pth_worker(void* in){
 
 void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* PP,__m256i ii,__m256i jj, int* H, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
 
+   
    __m256i up, left, diag;
 
     __m256i HHu = _mm256_loadu_si256(Hu);
@@ -465,8 +469,8 @@ void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__
     left                   =_mm256_add_epi32(HHl,_mm256_set1_epi32(gapScore));
 
     //Get element on the diagonal
-    __m256i A              =_mm256_i32gather_epi32((int const*) a, _mm256_sub_epi32(ii,_mm256_set1_epi32(1)), sizeof(char));
-    __m256i B              =_mm256_i32gather_epi32((int const*) b, _mm256_sub_epi32(jj,_mm256_set1_epi32(1)), sizeof(char));
+    __m256i A              =_mm256_i32gather_epi32((void*) a, _mm256_sub_epi32(ii,_mm256_set1_epi32(1)), sizeof(char));
+    __m256i B              =_mm256_i32gather_epi32((void*) b, _mm256_sub_epi32(jj,_mm256_set1_epi32(1)), sizeof(char));
    A                      = _mm256_slli_epi32(A,24);
    B                      = _mm256_slli_epi32(B,24);
    __m256i mask           = _mm256_cmpeq_epi32(A, B);
@@ -479,7 +483,6 @@ void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__
 
     //Calculates the maximum
    __m256i max  =_mm256_set1_epi32(NONE);
- //  __m256i pred =_mm256_set1_epi32(NONE);
 
     /* === Matrix ===
      *      a[0] ... a[n] 
@@ -498,38 +501,18 @@ void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__
    //same letter ↖
     mask    = _mm256_cmpgt_epi32(diag, max);
     max     = _mm256_blendv_epi8(max, diag, mask);
-   // pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(DIAGONAL), mask);
 
     //remove letter ↑ 
     mask    = _mm256_cmpgt_epi32(up, max);
     max     = _mm256_blendv_epi8(max, up, mask);
-   // pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(UP), mask);
 
     //insert letter ←
     mask    = _mm256_cmpgt_epi32(left, max);
     max     = _mm256_blendv_epi8(max, left, mask);
-   // pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(LEFT), mask);
+
 
     //Inserts the value in the similarity and predecessor matrixes
     _mm256_storeu_si256(HH, max);
-    /*_mm256_storeu_si256(PP, pred);
-    
-    //Updates maximum score to be used as seed on backtrack 
-    __m256i vmax = max;
-    vmax = _mm256_max_epu32(vmax, _mm256_alignr_epi8(vmax, vmax, 4));
-    vmax = _mm256_max_epu32(vmax, _mm256_alignr_epi8(vmax, vmax, 8));
-    vmax = _mm256_max_epu32(vmax, _mm256_permute2x128_si256(vmax, vmax, 0x01));
-
-    __m256i vcmp = _mm256_cmpeq_epi32(max, vmax);
-
-    int max_index = _mm256_movemask_epi8(vcmp);
-
-    max_index = __builtin_ctz(max_index) >> 2;
-
-    if (H[ind+max_index] > H[*maxPos]) {
-        *maxPos         = ind+max_index;
-        *maxPos_max_len = max_len;
-    }*/
 
 }  /* End of similarityScore */
 
@@ -699,34 +682,119 @@ void printPredecessorMatrix(int* matrix) {
  * Function:    generate
  * Purpose:     Generate arrays a and b
  */
+ /*--------------------------------------------------------------------
+ * Function:    generate
+ * Purpose:     Generate arrays a and b
+ */
  void generate(){
     //Generates the values of a
-    long long int i;
+    int i;
     for(i=0;i<m;i++){
-        int aux=rand()%4;
+        int aux=rand()%24;
         if(aux==0)
             a[i]='A';
+        else if(aux==1)
+            a[i]='R';
         else if(aux==2)
-            a[i]='C';
+            a[i]='N';
         else if(aux==3)
+            a[i]='D';
+        else if(aux==4)
+            a[i]='C';
+        else if(aux==5)
+            a[i]='Q';
+        else if(aux==6)
+            a[i]='E';
+        else if(aux==7)
             a[i]='G';
-        else
+        else if(aux==8)
+            a[i]='H';
+        else if(aux==9)
+            a[i]='I';
+        else if(aux==10)
+            a[i]='L';
+        else if(aux==11)
+            a[i]='K';
+        else if(aux==12)
+            a[i]='M';
+        else if(aux==13)
+            a[i]='F';
+        else if(aux==14)
+            a[i]='P';
+        else if(aux==15)
+            a[i]='S';
+        else if(aux==16)
             a[i]='T';
+        else if(aux==17)
+            a[i]='W';
+        else if(aux==18)
+            a[i]='Y';
+        else if(aux==19)
+            a[i]='V';
+        else if(aux==20)
+            a[i]='B';
+        else if(aux==21)
+            a[i]='J';
+        else if(aux==22)
+            a[i]='Z';
+        else 
+            a[i]='X';
     }
 
     //Generates the values of b
     for(i=0;i<n;i++){
-        int aux=rand()%4;
+        int aux=rand()%24;
         if(aux==0)
             b[i]='A';
+        else if(aux==1)
+            b[i]='R';
         else if(aux==2)
-            b[i]='C';
+            b[i]='N';
         else if(aux==3)
+            b[i]='D';
+        else if(aux==4)
+            b[i]='C';
+        else if(aux==5)
+            b[i]='Q';
+        else if(aux==6)
+            b[i]='E';
+        else if(aux==7)
             b[i]='G';
-        else
+        else if(aux==8)
+            b[i]='H';
+        else if(aux==9)
+            b[i]='I';
+        else if(aux==10)
+            b[i]='L';
+        else if(aux==11)
+            b[i]='K';
+        else if(aux==12)
+            b[i]='M';
+        else if(aux==13)
+            b[i]='F';
+        else if(aux==14)
+            b[i]='P';
+        else if(aux==15)
+            b[i]='S';
+        else if(aux==16)
             b[i]='T';
+        else if(aux==17)
+            b[i]='W';
+        else if(aux==18)
+            b[i]='Y';
+        else if(aux==19)
+            b[i]='V';
+        else if(aux==20)
+            b[i]='B';
+        else if(aux==21)
+            b[i]='J';
+        else if(aux==22)
+            b[i]='Z';
+        else 
+            b[i]='X';
     }
 } /* End of generate */
+
 
 
 /*--------------------------------------------------------------------

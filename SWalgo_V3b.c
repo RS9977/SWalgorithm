@@ -3,13 +3,14 @@
  * Purpose:     Local alignment of nucleotide or protein sequences
  * Authors:     Daniel Holanda, Hanoch Griner, Taynara Pinheiro
  ***********************************************************************/
-//This is the working AVX256 for 4B integer
+//This is the AVX512 version.
 
-//gcc -mavx2 SWalgo_V4.c -lgomp -o SWalgo_V4
+
+// gcc -mavx512f SWalgo_V3.c -lgomp -o SWalgo_V3
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
-#include <stdint.h>
 #include <omp.h>
 #include <xmmintrin.h>
 #include <smmintrin.h>
@@ -35,10 +36,9 @@
 #define LEFT 2
 #define DIAGONAL 3
 
-#define Vsize 8
+#define Vsize 16
+#define NumOfTest 1e3
 
-
-#define NumOfTest 1e3//1e4
 //#define DEBUG
 //#define pragmas
 /* End of constants */
@@ -48,7 +48,7 @@
  * Functions Prototypes
  */
 void similarityScore(long long int ind, long long int ind_u, long long int ind_d, long long int ind_l, long long int ii, long long int jj, int* H, int* P, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
-void similarityScoreIntrinsic(__m256i* H,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* P,__m256i ii,__m256i jj, int* H_main, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
+void similarityScoreIntrinsic(__m512i* H, __m512i* Hu, __m512i* Hd, __m512i* Hl, __m512i* P, __m512i ii, __m512i jj, int* H_main, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
 int  matchMissmatchScore(long long int i, long long int j);
 void backtrack(int* P, long long int maxPos, long long int maxPos_max_len);
 void printMatrix(int* matrix);
@@ -91,8 +91,8 @@ int main(int argc, char* argv[]) {
         }
     }
     else{
-        m = 100000;
-        n = 10000;
+        m = 22;
+        n = 20;
     }
 
 
@@ -100,12 +100,9 @@ int main(int argc, char* argv[]) {
     printf("\nMatrix[%lld][%lld]\n", n, m);
     #endif
 
-
-    
     //Allocates a and b
     a = malloc(m * sizeof(char));
     b = malloc(n * sizeof(char));
-    
     //Because now we have zeros
     m++;
     n++;
@@ -146,11 +143,12 @@ int main(int argc, char* argv[]) {
     //Start position for backtrack
     long long int maxPos         = 0;
     long long int maxPos_max_len = 0;
-
+    double t;
     //Calculates the similarity matrix
     long long int i, j;
 
-    
+    for(i=0; i<1e8; i++);
+
     double initialTime = omp_get_wtime();
     #ifdef pragmas
     #pragma GCC ivdep
@@ -166,7 +164,7 @@ int main(int argc, char* argv[]) {
         printf("%c ",b[i]);
     printf("\n");
     #endif
-    double t;
+
     int it;
     for(it=0; it<NumOfTest; it++){
 
@@ -174,7 +172,7 @@ int main(int argc, char* argv[]) {
     long long int indd  = 0;
     long long int indul = 1;
     long long int ind_u, ind_d, ind_l; 
-   __m256i offset =_mm256_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7);
+    __m512i offset = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
     for (i = 2; i < m+n-1; i++) { //Lines
         long long int max_len;
         long long int ii,jj;
@@ -206,44 +204,34 @@ int main(int argc, char* argv[]) {
             else
                 ind_d = ind - (max_len<<1);
         }  
-       
-        __m256i* Hu = (__m256i*) (H+ind_u+j_start);
-        __m256i* Hl = (__m256i*) (H+ind_l+j_start);
-        __m256i* Hd = (__m256i*) (H+ind_d+j_start);
-        __m256i* HH = (__m256i*) (H+ind+j_start);
-        __m256i* PP = (__m256i*) (P+ind+j_start);
-        /*uintptr_t addr = (uintptr_t)Hu;
-        int offs = addr & 0x1f;
-        if (offs != 0) {
-            Hu = (__m256i*)((uintptr_t)Hu - offs + 32);
-            Hl = (__m256i*)((uintptr_t)Hl - offs + 32);
-            Hd = (__m256i*)((uintptr_t)Hd - offs + 32);
-            HH = (__m256i*)((uintptr_t)HH - offs + 32);
-            PP = (__m256i*)((uintptr_t)PP - offs + 32);
-        }*/
-        //int Vsize = 256/sizeof(typeof(H));
-      //  #pragma gcc ivdep 
-        for (j = j_start; j <j_end-Vsize+1; j+=Vsize) { //Columns  
+        __m512i* Hu = (__m512i*) (H+ind_u+j_start);
+        __m512i* Hl = (__m512i*) (H+ind_l+j_start);
+        __m512i* Hd = (__m512i*) (H+ind_d+j_start);
+        __m512i* HH = (__m512i*) (H+ind+j_start);
+        __m512i* PP = (__m512i*) (P+ind+j_start);
 
-           __m256i Joffset = _mm256_add_epi32(offset,_mm256_set1_epi32(j));
-           __m256i Ioffset = _mm256_set1_epi32(i);
-           __m256i mask    = _mm256_set1_epi32(-(int)(m>i));
-           __m256i I_J     = _mm256_sub_epi32(Ioffset, Joffset);
-           __m256i M_1     = _mm256_set1_epi32(m-1);
-           __m256i M_1_J   = _mm256_sub_epi32(M_1,Joffset);
-           __m256i II      = _mm256_blendv_epi8(M_1_J, I_J, mask);
-           __m256i IJ      = _mm256_add_epi32(Joffset, Ioffset);
-           __m256i I_MJ1   = _mm256_sub_epi32(IJ,M_1);
-           __m256i JJ      = _mm256_blendv_epi8(I_MJ1, Joffset, mask);
-           similarityScoreIntrinsic(HH, Hu, Hd, Hl, PP, II, JJ, H, ind+j, max_len, &maxPos, &maxPos_max_len);
-           Hu++;
-           Hl++;
-           Hd++;
-           HH++;
-           PP++;
+        //int Vsize = 512/sizeof(typeof(H));
+      //  #pragma gcc ivdep 
+        for (j = j_start; j <j_end-Vsize+1; j+=Vsize) { //Columns   
+
+            __m512i Joffset = _mm512_add_epi32(offset, _mm512_set1_epi32(j));
+            __m512i Ioffset = _mm512_set1_epi32(i);
+            __mmask16 mask  = _mm512_cmpgt_epi32_mask(Ioffset,_mm512_set1_epi32(m));
+            __m512i I_J     = _mm512_sub_epi32(Ioffset, Joffset);
+            __m512i M_1_J   = _mm512_sub_epi32(_mm512_set1_epi32(m-1),Joffset);
+            __m512i II      = _mm512_mask_mov_epi32(I_J, mask, M_1_J);
+            __m512i IJ      = _mm512_add_epi32(Joffset, Ioffset);
+            __m512i I_MJ1   = _mm512_sub_epi32(IJ,_mm512_set1_epi32(m-1));
+            __m512i JJ      = _mm512_mask_mov_epi32(Joffset, mask, I_MJ1);
+            similarityScoreIntrinsic(HH, Hu, Hd, Hl, PP, II, JJ, H, ind, max_len, &maxPos, &maxPos_max_len);
+            Hu++;
+            Hl++;
+            Hd++;
+            HH++;
+            PP++;
         }
-       
-        for(;j<j_end; j++){
+        
+         for(;j<j_end; j++){
             if (i<m){
                 ii = i-j;
                 jj = j;
@@ -256,19 +244,16 @@ int main(int argc, char* argv[]) {
         }
         ind += max_len;
     }
-    
-    backtrack(P, maxPos, maxPos_max_len);
-
-
+        
     }
-
-
     //Gets final time
     double finalTime = omp_get_wtime();
-
-    printf("\nElapsed time: %f\n\n", (finalTime - initialTime)/NumOfTest);
+    printf("\nElapsed time V3 for n(%lld) and m(%lld): %f\n", n-1, m-1, (finalTime - initialTime)/NumOfTest);
 
     
+
+    
+
     #ifdef DEBUG
     printf("\nSimilarity Matrix:\n");
     printMatrix(H);
@@ -308,7 +293,7 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
 
     //Calculates the maximum
     int max = NONE;
-    int pred = NONE;
+   // int pred = NONE;
     /* === Matrix ===
      *      a[0] ... a[n] 
      * b[0]
@@ -326,61 +311,60 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
     
     if (diag > max) { //same letter ↖
         max = diag;
-        pred = DIAGONAL;
+     //   pred = DIAGONAL;
     }
 
     if (up > max) { //remove letter ↑ 
         max = up;
-        pred = UP;
+     //   pred = UP;
     }
     
     if (left > max) { //insert letter ←
         max = left;
-        pred = LEFT;
+    //    pred = LEFT;
     }
     //Inserts the value in the similarity and predecessor matrixes
     H[ind] = max;
-    P[ind] = pred;
-
+  //  P[ind] = pred;
+/*
     //Updates maximum score to be used as seed on backtrack 
     if (max > H[*maxPos]) {
         *maxPos = ind;
         *maxPos_max_len = max_len;
     }
-
+*/
 }  /* End of similarityScore */
 
 
-void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* PP,__m256i ii,__m256i jj, int* H, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
+void similarityScoreIntrinsic(__m512i* HH, __m512i* Hu, __m512i* Hd, __m512i* Hl, __m512i* PP, __m512i ii, __m512i jj, int* H, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
 
-   __m256i up, left, diag;
+    __m512i up, left, diag;
 
-    __m256i HHu = _mm256_loadu_si256(Hu);
-    __m256i HHd = _mm256_loadu_si256(Hd);
-    __m256i HHl = _mm256_loadu_si256(Hl);
+    __m512i HHu = _mm512_loadu_si512(Hu);
+    __m512i HHd = _mm512_loadu_si512(Hd);
+    __m512i HHl = _mm512_loadu_si512(Hl);
 
     //Get element above
-    up                     =_mm256_add_epi32(HHu,_mm256_set1_epi32(gapScore));
+    up                     = _mm512_add_epi32(HHu, _mm512_set1_epi32(gapScore));
 
     //Get element on the left
-    left                   =_mm256_add_epi32(HHl,_mm256_set1_epi32(gapScore));
+    left                   = _mm512_add_epi32(HHl, _mm512_set1_epi32(gapScore));
 
     //Get element on the diagonal
-    __m256i A              =_mm256_i32gather_epi32((void*) a, _mm256_sub_epi32(ii,_mm256_set1_epi32(1)), sizeof(char));
-    __m256i B              =_mm256_i32gather_epi32((void*) b, _mm256_sub_epi32(jj,_mm256_set1_epi32(1)), sizeof(char));
-   A                      = _mm256_slli_epi32(A,24);
-   B                      = _mm256_slli_epi32(B,24);
-   __m256i mask           = _mm256_cmpeq_epi32(A, B);
-
-   __m256i MATCHSCORE     =_mm256_set1_epi32(matchScore);
-   __m256i MISSMATCHSCORE =_mm256_set1_epi32(missmatchScore);
-  __m256i MATCHMISS       = _mm256_blendv_epi8(MISSMATCHSCORE, MATCHSCORE, mask);
-    diag                  =_mm256_add_epi32(HHd, MATCHMISS);
+    __m512i A              = _mm512_i32gather_epi32(_mm512_sub_epi32(ii,_mm512_set1_epi32(1)), (void*)a, sizeof(char));
+    __m512i B              = _mm512_i32gather_epi32(_mm512_sub_epi32(jj,_mm512_set1_epi32(1)), (void*)b, sizeof(char));
+    A                      = _mm512_slli_epi32(A,24);
+    B                      = _mm512_slli_epi32(B,24);
+    __mmask16 mask         = _mm512_cmpeq_epi32_mask(A,B);
+    __m512i MATCHSCORE     = _mm512_set1_epi32(matchScore);
+    __m512i MISSMATCHSCORE = _mm512_set1_epi32(missmatchScore);
+    __m512i MATCHMISS      = _mm512_mask_mov_epi32(MISSMATCHSCORE, mask, MATCHSCORE);
+    diag                   = _mm512_add_epi32(HHd, MATCHMISS);
 
 
     //Calculates the maximum
-   __m256i max  =_mm256_set1_epi32(NONE);
-   __m256i pred =_mm256_set1_epi32(NONE);
+    __m512i max  = _mm512_set1_epi32(NONE);
+   // __m512i pred = _mm512_set1_epi32(NONE);
 
     /* === Matrix ===
      *      a[0] ... a[n] 
@@ -397,41 +381,36 @@ void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__
      * a=GAATTCA
     */
    //same letter ↖
-    mask    = _mm256_cmpgt_epi32(diag, max);
-    max     = _mm256_blendv_epi8(max, diag, mask);
-    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(DIAGONAL), mask);
+    mask = _mm512_cmpgt_epi32_mask(max, diag);
+    max  = _mm512_mask_mov_epi32(diag, mask, max);
+    //pred = _mm512_mask_mov_epi32(_mm512_set1_epi32(DIAGONAL), mask, pred);
 
     //remove letter ↑ 
-    mask    = _mm256_cmpgt_epi32(up, max);
-    max     = _mm256_blendv_epi8(max, up, mask);
-    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(UP), mask);
+    mask = _mm512_cmpgt_epi32_mask(max, up);
+    max  = _mm512_mask_mov_epi32(up, mask, max);
+    //pred = _mm512_mask_mov_epi32(_mm512_set1_epi32(UP), mask, pred);
+   
 
     //insert letter ←
-    mask    = _mm256_cmpgt_epi32(left, max);
-    max     = _mm256_blendv_epi8(max, left, mask);
-    pred    = _mm256_blendv_epi8(pred, _mm256_set1_epi32(LEFT), mask);
-
-    //Inserts the value in the similarity and predecessor matrixes
-    _mm256_storeu_si256(HH, max);
-    _mm256_storeu_si256(PP, pred);
+    mask = _mm512_cmpgt_epi32_mask(max, left);
+    max  = _mm512_mask_mov_epi32(left, mask, max);
+    //pred = _mm512_mask_mov_epi32(_mm512_set1_epi32(LEFT), mask, pred);
     
+    //Inserts the value in the similarity and predecessor matrixes
+
+    _mm512_storeu_si512(HH, max);
+/*    _mm512_storeu_si512(PP, pred);
+
     //Updates maximum score to be used as seed on backtrack 
-    __m256i vmax = max;
-    vmax = _mm256_max_epu32(vmax, _mm256_alignr_epi8(vmax, vmax, 4));
-    vmax = _mm256_max_epu32(vmax, _mm256_alignr_epi8(vmax, vmax, 8));
-    vmax = _mm256_max_epu32(vmax, _mm256_permute2x128_si256(vmax, vmax, 0x01));
-
-    __m256i vcmp = _mm256_cmpeq_epi32(max, vmax);
-
-    int max_index = _mm256_movemask_epi8(vcmp);
-
-    max_index = __builtin_ctz(max_index) >> 2;
-
-    if (H[ind+max_index] > H[*maxPos]) {
-        *maxPos         = ind+max_index;
+    int maxx       = _mm512_reduce_max_epi32(max);
+    mask           = _mm512_cmpeq_epi32_mask(max, _mm512_set1_epi32(maxx));
+    __m512i offset = _mm512_setr_epi32(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15);
+    int maxx_ind   = _mm512_mask_reduce_max_epi32(mask, offset);
+    if (maxx > H[*maxPos]) {
+        *maxPos         = ind+maxx_ind;
         *maxPos_max_len = max_len;
     }
-
+*/
 }  /* End of similarityScore */
 
 

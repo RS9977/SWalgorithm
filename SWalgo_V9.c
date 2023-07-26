@@ -5,7 +5,7 @@
  ***********************************************************************/
 //This is the working AVX256 for 1B integer multi threaded
 
-//gcc -mavx2 SWalgo_V9.c -lgomp -o SWalgo_V9
+//gcc -mavx2 -O3 SWalgo_V9.c -lgomp -lpthread -o SWalgo_V9
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
@@ -18,6 +18,7 @@
 #include <sys/stat.h>
 #include <pthread.h>
 #include <time.h>
+
 //#include <zmmintrin.h>
 
 /*--------------------------------------------------------------------
@@ -39,8 +40,8 @@
 #define Vsize 32
 
 #define CPNS 5.0 
-#define NumOfTest 1e2//1e4
-#define NumOfThreads 28
+#define NumOfTest 1e1//1e4
+#define NumOfThs 20
 //#define DEBUG
 //#define pragmas
 /* End of constants */
@@ -49,11 +50,11 @@
 /*--------------------------------------------------------------------
  * Functions Prototypes
  */
-void similarityScore(long long int ind, long long int ind_u, long long int ind_d, long long int ind_l, long long int ii, long long int jj, int* H, int* P, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
-void similarityScoreIntrinsic(__m256i* H,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* P,long long int ii,long long int jj, int* H_main, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
-int  matchMissmatchScore(long long int i, long long int j);
+void similarityScore(long long int ind, long long int ind_u, long long int ind_d, long long int ind_l, long long int ii, long long int jj, int8_t * H, int8_t * P, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
+void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* PP, long long int ii, long long int jj, int8_t * H, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len);
+int  matchMissmatchScore(int i, int j);
 void* enitre_simiraity_pth_worker(void* in);
-void backtrack(int* P, long long int maxPos, long long int maxPos_max_len);
+void backtrack(int* P, int maxPos, int maxPos_max_len);
 void printMatrix(int* matrix);
 void printPredecessorMatrix(int* matrix);
 void generate(void);
@@ -76,7 +77,7 @@ double wakeup_delay()
   struct timespec time_start, time_stop;
   double quasi_random = 0;
   clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &time_start);
-  j = 100;
+  j = 10000000;
   while (meas < 1.0) {
     for (i=1; i<j; i++) {
       /* This iterative calculation uses a chaotic map function, specifically
@@ -100,6 +101,7 @@ double wakeup_delay()
 //Defines size of strings to be compared
 long long int m  = 3; //Columns - Size of string a
 long long int mm = 11;  //Lines - Size of string b
+long long int nn = 9;  //Lines - Size of string b
 long long int n  = 7;  //Lind for each chunck
 
 //Defines scores
@@ -117,8 +119,9 @@ pthread_mutex_t lock;
 
 typedef struct
 {
-    long long int start_ind;
-    int* H;
+    long long int start_ind0;
+    long long int start_ind1;
+    int8_t * H;
 }similarity_data;
 
 /*--------------------------------------------------------------------
@@ -126,20 +129,21 @@ typedef struct
  */
 int main(int argc, char* argv[]) {
     
-    
+    int NumOfThreads = NumOfThs;
     if(argc>1){
-        mm = strtoll(argv[1], NULL, 10);
-        n = strtoll(argv[2], NULL, 10); 
-        long long int temp;
-        if( mm<n){
+        mm = atoi(argv[1]);
+        nn = atoi(argv[2]); 
+        NumOfThreads = atoi(argv[3]); 
+        int temp;
+        if( mm<nn){
             temp = mm;
-            mm = n;
-            n = temp;
+            mm = nn;
+            nn = temp;
         }
     }
     else{
         mm = 10000;
-        n = 100;
+        nn = 10000;
     }
 
     struct timespec time_start, time_stop;
@@ -149,19 +153,20 @@ int main(int argc, char* argv[]) {
 
     //Allocates a and b
     a = malloc(mm * sizeof(char));
-    b = malloc(n * sizeof(char));
+    b = malloc(nn * sizeof(char));
     //Because now we have zeros
     m = mm/NumOfThreads;
+    n = nn/NumOfThreads;
     m++;
     n++;
     
     //Allocates similarity matrix H
-    int *H;
-    H = calloc(NumOfThreads * m * n, sizeof(int));
+    int8_t  *H;
+    H = calloc(NumOfThreads*NumOfThreads * m * n, sizeof(int8_t ));
 
     //Allocates predecessor matrix P
-    int *P;
-    P = calloc(NumOfThreads * m * n, sizeof(int));
+    int8_t  *P;
+    P = calloc(NumOfThreads*NumOfThreads * m * n, sizeof(int8_t ));
 
 
     //Gen rand arrays a and b
@@ -193,7 +198,7 @@ int main(int argc, char* argv[]) {
     long long int maxPos_max_len = 0;
 
     //Calculates the similarity matrix
-    long long int i, j;
+    int i, j;
 
     double ww = wakeup_delay();
     pthread_mutex_init(&lock, NULL);
@@ -224,7 +229,8 @@ int main(int argc, char* argv[]) {
         int t;
         int rc;          
         for(t=0; t<NumOfThreads; t++){ 
-            thread_data_array[t].start_ind = t*m;  
+            thread_data_array[t].start_ind0 = t*(m-1);  
+            thread_data_array[t].start_ind1 = t*(n-1);  
             thread_data_array[t].H         = (H+(t*m*n));        
             rc = pthread_create(&threads[t], NULL, enitre_simiraity_pth_worker, (void*) &thread_data_array[t]);
             if (rc) {
@@ -249,8 +255,10 @@ int main(int argc, char* argv[]) {
     
     clock_gettime(CLOCK_REALTIME, &time_stop);
     printf("\nww:%f Best Function time V8 for n(%lld), m(%lld) and threads(%d): %f", ww, n-1, m-1, overall, NumOfThreads);
-    printf("\nGCUPS: %f", 1e-9*(m-1)*(n-1)*NumOfThreads/overall);
-    printf("\nClock wall: %f\n", interval(time_start, time_stop)/NumOfTest);
+    printf("\nGCUPS max: %f", 1e-9*(m-1)*(n-1)*NumOfThreads/overall);
+    double mean_time = interval(time_start, time_stop)/NumOfTest;
+    printf("\nClock wall: %f\n", mean_time);
+    printf("\nGCUPS mean: %f\n", 1e-9*(m-1)*(n-1)*NumOfThreads/mean_time);
     
     
     FILE *fp;
@@ -286,9 +294,9 @@ int main(int argc, char* argv[]) {
  * Function:    SimilarityScore
  * Purpose:     Calculate  the maximum Similarity-Score H(i,j)
  */
-void similarityScore(long long int ind, long long int ind_u, long long int ind_d, long long int ind_l, long long int ii, long long int jj, int* H, int* P, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
+void similarityScore(long long int ind, long long int ind_u, long long int ind_d, long long int ind_l, long long int ii, long long int jj, int8_t * H, int8_t * P, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
 
-    int up, left, diag;
+    int8_t  up, left, diag;
 
     //Get element above
     up = H[ind_u] + gapScore;
@@ -300,7 +308,7 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
     diag = H[ind_d] + matchMissmatchScore(ii, jj);
 
     //Calculates the maximum
-    int max = NONE;
+    int8_t  max = NONE;
     //int pred = NONE;
     /* === Matrix ===
      *      a[0] ... a[n] 
@@ -346,9 +354,10 @@ void similarityScore(long long int ind, long long int ind_u, long long int ind_d
 void* enitre_simiraity_pth_worker(void* in){
 
     similarity_data *inss = (similarity_data *) in;
-    long long int start_ind = inss -> start_ind;
-    int * H                 = inss -> H;
-    int * P;
+    long long int start_ind0 = inss -> start_ind0;
+    long long int start_ind1 = inss -> start_ind1;
+    int8_t  * H                 = inss -> H;
+    int8_t  * P;
     //Allocates similarity matrix H
 
     //Start position for backtrack
@@ -365,11 +374,11 @@ void* enitre_simiraity_pth_worker(void* in){
     long long int indd  = 0;
     long long int indul = 1;
     long long int ind_u, ind_d, ind_l; 
-   __m256i offset =_mm256_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31);
+    __m256i offset =_mm256_setr_epi8(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31);
     for (i = 2; i < m+n-1; i++) { //Lines
-        long long int max_len;
-        long long int ii,jj;
-        long long int j_start, j_end;
+        int max_len;
+        int ii,jj;
+        int j_start, j_end;
         if (i<n){
 		    max_len = i+1;
             j_start = 1;
@@ -388,8 +397,8 @@ void* enitre_simiraity_pth_worker(void* in){
         }
 	    else{
 		    max_len   = n;
-            j_start = 1;
-            j_end   = max_len;
+            j_start   = 1;
+            j_end     = max_len;
             ind_u     = ind - max_len - 1;
             ind_l     = ind - max_len; 
             if(i>n)
@@ -416,12 +425,12 @@ void* enitre_simiraity_pth_worker(void* in){
       //  #pragma gcc ivdep 
         for (j = j_start; j <j_end-Vsize+1; j+=Vsize) { //Columns  
             if (i<m){
-                ii = i-j;
-                jj = j;
+                ii = i-j+start_ind0;
+                jj = j+start_ind1;
             }
             else{
-                ii = m-1-j;
-                jj = i-m+j+1;
+                ii = m-1-j+start_ind0;
+                jj = i-m+j+1+start_ind1;
             } 
            similarityScoreIntrinsic(HH, Hu, Hd, Hl, PP, ii, jj, H, ind+j, max_len, &maxPos, &maxPos_max_len);
            Hu++;
@@ -433,12 +442,12 @@ void* enitre_simiraity_pth_worker(void* in){
        
         for(;j<j_end; j++){
             if (i<m){
-                ii = i-j;
-                jj = j;
+                ii = i-j+start_ind0;
+                jj = j+start_ind1;
             }
             else{
-                ii = m-1-j;
-                jj = i-m+j+1;
+                ii = m-1-j+start_ind0;
+                jj = i-m+j+1+start_ind1;
             }      
             similarityScore(ind+j, ind_u+j, ind_d+j, ind_l+j, ii, jj, H, P, max_len, &maxPos, &maxPos_max_len);
         }
@@ -447,7 +456,7 @@ void* enitre_simiraity_pth_worker(void* in){
 }
 
 
-void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* PP,long long int ii, long long int jj, int* H, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
+void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__m256i* PP, long long int ii, long long int jj, int8_t * H, long long int ind, long long int max_len, long long int* maxPos, long long int *maxPos_max_len) {
 
    __m256i up, left, diag;
 
@@ -472,7 +481,7 @@ void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__
 
    __m256i MATCHSCORE     =_mm256_set1_epi8(matchScore);
    __m256i MISSMATCHSCORE =_mm256_set1_epi8(missmatchScore);
-  __m256i MATCHMISS       = _mm256_blendv_epi8(MISSMATCHSCORE, MATCHSCORE, mask);
+   __m256i MATCHMISS       = _mm256_blendv_epi8(MISSMATCHSCORE, MATCHSCORE, mask);
     diag                  =_mm256_add_epi8(HHd, MATCHMISS);
 
 
@@ -537,7 +546,7 @@ void similarityScoreIntrinsic(__m256i* HH,__m256i* Hu,__m256i* Hd,__m256i* Hl,__
  * Function:    matchMissmatchScore
  * Purpose:     Similarity function on the alphabet for match/missmatch
  */
-int matchMissmatchScore(long long int i, long long int j) {
+int matchMissmatchScore(int i, int j) {
     if (a[i-1] == b[j-1])
         return matchScore;
     else
@@ -548,17 +557,17 @@ int matchMissmatchScore(long long int i, long long int j) {
  * Function:    backtrack
  * Purpose:     Modify matrix to print, path change from value to PATH
  */
-void backtrack(int* P, long long int maxPos, long long int maxPos_max_len) {
+void backtrack(int* P, int maxPos, int maxPos_max_len) {
     //hold maxPos value
-    long long int predPos;
-    long long int predMaxLen;
+    int predPos;
+    int predMaxLen;
     #ifdef pragmas
     #pragma GCC ivdep
     #endif
     //backtrack from maxPos to startPos = 0 
-    long long int first_sec = (n*(n+1))/2;
-    long long int last_sec  = n*m - (n*(n-1))/2;
-    long long int ind_u, ind_d, ind_l; 
+    int first_sec = (n*(n+1))/2;
+    int last_sec  = n*m - (n*(n-1))/2;
+    int ind_u, ind_d, ind_l; 
     bool diagCompensate     = 0;
     do {
         if (maxPos<first_sec){
@@ -618,7 +627,7 @@ void backtrack(int* P, long long int maxPos, long long int maxPos_max_len) {
  * Purpose:     Print Matrix
  */
 void printMatrix(int* matrix) {
-    long long int i, j, ind;
+    int i, j, ind;
     printf(" \t \t");
     for(i=0; i<m-1; i++)
         printf("%c\t",a[i]);
@@ -647,7 +656,7 @@ void printMatrix(int* matrix) {
  * Purpose:     Print predecessor matrix
  */
 void printPredecessorMatrix(int* matrix) {
-    long long int i, j, ind;
+    int i, j, ind;
     printf("    ");
     for(i=0; i<m-1; i++)
         printf("%c ",a[i]);
@@ -700,32 +709,113 @@ void printPredecessorMatrix(int* matrix) {
  */
  void generate(){
     //Generates the values of a
-    long long int i;
-    for(i=0;i<m;i++){
-        int aux=rand()%4;
+    int i;
+    for(i=0;i<mm;i++){
+        int aux=rand()%24;
         if(aux==0)
             a[i]='A';
+        else if(aux==1)
+            a[i]='R';
         else if(aux==2)
-            a[i]='C';
+            a[i]='N';
         else if(aux==3)
+            a[i]='D';
+        else if(aux==4)
+            a[i]='C';
+        else if(aux==5)
+            a[i]='Q';
+        else if(aux==6)
+            a[i]='E';
+        else if(aux==7)
             a[i]='G';
-        else
+        else if(aux==8)
+            a[i]='H';
+        else if(aux==9)
+            a[i]='I';
+        else if(aux==10)
+            a[i]='L';
+        else if(aux==11)
+            a[i]='K';
+        else if(aux==12)
+            a[i]='M';
+        else if(aux==13)
+            a[i]='F';
+        else if(aux==14)
+            a[i]='P';
+        else if(aux==15)
+            a[i]='S';
+        else if(aux==16)
             a[i]='T';
+        else if(aux==17)
+            a[i]='W';
+        else if(aux==18)
+            a[i]='Y';
+        else if(aux==19)
+            a[i]='V';
+        else if(aux==20)
+            a[i]='B';
+        else if(aux==21)
+            a[i]='J';
+        else if(aux==22)
+            a[i]='Z';
+        else 
+            a[i]='X';
     }
 
     //Generates the values of b
-    for(i=0;i<n;i++){
-        int aux=rand()%4;
+    for(i=0;i<nn;i++){
+        int aux=rand()%24;
         if(aux==0)
             b[i]='A';
+        else if(aux==1)
+            b[i]='R';
         else if(aux==2)
-            b[i]='C';
+            b[i]='N';
         else if(aux==3)
+            b[i]='D';
+        else if(aux==4)
+            b[i]='C';
+        else if(aux==5)
+            b[i]='Q';
+        else if(aux==6)
+            b[i]='E';
+        else if(aux==7)
             b[i]='G';
-        else
+        else if(aux==8)
+            b[i]='H';
+        else if(aux==9)
+            b[i]='I';
+        else if(aux==10)
+            b[i]='L';
+        else if(aux==11)
+            b[i]='K';
+        else if(aux==12)
+            b[i]='M';
+        else if(aux==13)
+            b[i]='F';
+        else if(aux==14)
+            b[i]='P';
+        else if(aux==15)
+            b[i]='S';
+        else if(aux==16)
             b[i]='T';
+        else if(aux==17)
+            b[i]='W';
+        else if(aux==18)
+            b[i]='Y';
+        else if(aux==19)
+            b[i]='V';
+        else if(aux==20)
+            b[i]='B';
+        else if(aux==21)
+            b[i]='J';
+        else if(aux==22)
+            b[i]='Z';
+        else 
+            b[i]='X';
     }
 } /* End of generate */
+
 
 
 /*--------------------------------------------------------------------
